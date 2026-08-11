@@ -67,8 +67,8 @@ export class WeatherSystem {
         if (!dropAlphaImg || !dropColorImg || this.raindrops) return;
 
         this.raindrops = new Raindrops(
-            window.innerWidth,
-            window.innerHeight,
+            512,
+            288,
             1,
             dropAlphaImg,
             dropColorImg,
@@ -219,8 +219,8 @@ export class WeatherSystem {
             this.lightningFlash = 0.0;
         }
 
-        // 4. Update Raindrops 2D Physics Canvas Texture
-        if (this.raindrops && this.waterTexture) {
+        // 4. Update Raindrops 2D Physics Canvas Texture (Only when raining)
+        if (this.raindrops && this.waterTexture && this.weatherType !== 3) {
             this.raindrops.update();
             this.waterTexture.needsUpdate = true;
         }

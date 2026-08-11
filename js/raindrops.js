@@ -48,7 +48,7 @@ const Drop = {
 const defaultOptions = {
     minR: 10,
     maxR: 40,
-    maxDrops: 1000,
+    maxDrops: 120,
     rainChance: 0.35,
     rainLimit: 4,
     dropletsRate: 50,
@@ -246,12 +246,6 @@ export class Raindrops {
         const rainDrops = this.updateRain(timeScale);
         newDrops = newDrops.concat(rainDrops);
 
-        this.drops.sort((a, b) => {
-            const va = (a.y * (this.width / this.scale)) + a.x;
-            const vb = (b.y * (this.width / this.scale)) + b.x;
-            return va > vb ? 1 : va === vb ? 0 : -1;
-        });
-
         // Wind Center of Screen
         const cx = (this.width / this.scale) * 0.5;
         const cy = (this.height / this.scale) * 0.45;
@@ -320,7 +314,7 @@ export class Raindrops {
                 drop.isNew = false;
 
                 if (checkCollision) {
-                    this.drops.slice(i + 1, i + 70).forEach((drop2) => {
+                    this.drops.slice(i + 1, i + 10).forEach((drop2) => {
                         if (
                             drop !== drop2 &&
                             drop.r > drop2.r &&

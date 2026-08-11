@@ -184,6 +184,76 @@ canvas {
     letter-spacing: 0.05em;
 }
 
+/* High FPS Turbo Mode & Performance HUD */
+#fps-hud-panel {
+    position: absolute;
+    top: 30px;
+    left: 210px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    pointer-events: auto;
+    z-index: 20;
+}
+
+#fps-counter-badge {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #00ffaa;
+    background: rgba(0, 20, 15, 0.75);
+    border: 1px solid rgba(0, 255, 170, 0.4);
+    padding: 6px 14px;
+    border-radius: 4px;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 0 15px rgba(0, 255, 170, 0.25);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+#fps-counter-badge .fps-icon {
+    font-size: 1.0rem;
+    color: #ffcc00;
+}
+
+#fps-counter-badge .fps-unit {
+    font-size: 0.65rem;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+#fps-counter-badge .fps-separator {
+    color: rgba(255, 255, 255, 0.25);
+    margin: 0 4px;
+}
+
+.turbo-btn {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #ffffff;
+    background: linear-gradient(90deg, rgba(255, 170, 0, 0.3), rgba(255, 50, 0, 0.3));
+    border: 1px solid rgba(255, 170, 0, 0.6);
+    padding: 6px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    transition: all 0.2s ease;
+    box-shadow: 0 0 12px rgba(255, 170, 0, 0.3);
+}
+
+.turbo-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 20px rgba(255, 170, 0, 0.6);
+}
+
+.turbo-btn.active {
+    color: #00ffff;
+    background: linear-gradient(90deg, rgba(0, 255, 255, 0.35), rgba(0, 150, 255, 0.35));
+    border-color: #00ffff;
+    box-shadow: 0 0 18px rgba(0, 255, 255, 0.5);
+}
+
 /* Top-Center: Score Badge */
 #dc-top-center {
     position: absolute;

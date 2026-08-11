@@ -15,14 +15,18 @@ export class Vehicle {
         this.speed = 0;
         this.heading = 0; // radians, 0 = facing -Z
         this.maxSpeed = 300 / 3.6; // 83.33 m/s = 300 km/h top speed
-        this.baseAcceleration = 3.8; // m/s^2 (0-60 km/h in ~4.0 seconds)
-        this.brakeForce = 22;
+        this.baseAcceleration = 5.2; // m/s^2 (0-100 km/h in ~3.8 seconds)
+        this.brakeForce = 25;
         this.reverseMaxSpeed = 25; // ~90 km/h reverse
-        this.turnSpeed = 1.8;
-        this.drag = 0.997;
+        this.turnSpeed = 2.2;
+        this.drag = 0.995;
         this.nitroBoost = 1.35;
         this.isNitro = false;
         this.steerAngle = 0;
+        this.currentSteer = 0;
+        this.lateralVelocity = 0;
+        this.rollAngle = 0;
+        this.pitchAngle = 0;
 
         // Internals
         this.wheels = [];
@@ -60,8 +64,7 @@ export class Vehicle {
         hlPos.forEach((x) => {
             const spot = new THREE.SpotLight(0xf0f5ff, 8.0, 60, Math.PI / 5.5, 0.8, 1.2);
             spot.position.set(x, 0.55, -2.0);
-            spot.castShadow = true;
-            spot.shadow.mapSize.set(512, 512);
+            spot.castShadow = false;
 
             const target = new THREE.Object3D();
             target.position.set(x, -0.4, -40);
@@ -73,9 +76,9 @@ export class Vehicle {
 
         // ---- 2. Rear Brake & Taillight Ground Projection ----
         this.rearBrakeSpot = new THREE.SpotLight(0xff1100, 0, 15, Math.PI / 3, 0.7, 1.2);
-        this.rearBrakeSpot.position.set(0, 0.6, 2.2);
+        this.rearBrakeSpot.position.set(0, 0.3, 2.3);
         const rearTarget = new THREE.Object3D();
-        rearTarget.position.set(0, 0, 8);
+        rearTarget.position.set(0, -0.6, 8);
         this.lightsGroup.add(rearTarget);
         this.rearBrakeSpot.target = rearTarget;
         this.lightsGroup.add(this.rearBrakeSpot);
@@ -224,14 +227,38 @@ export class Vehicle {
                         child.castShadow = true;
                         child.receiveShadow = true;
 
+                        // Tone down metallic & roughness specular glare across GLTF materials
+                        if (child.material) {
+                            const name = child.name ? child.name.toLowerCase() : '';
+                            if (name.includes('glass') || name.includes('window')) {
+                                child.material = new THREE.MeshPhysicalMaterial({
+                                    color: 0x0a1020,
+                                    metalness: 0.1,
+                                    roughness: 0.2,
+                                    transmission: 0.8,
+                                    transparent: true,
+                                    opacity: 0.65,
+                                    clearcoat: 0.5,
+                                    clearcoatRoughness: 0.1,
+                                });
+                            } else if (name !== 'body' && name !== 'lights' && name !== 'lights_red' && name !== 'leds') {
+                                if (child.material.metalness !== undefined) {
+                                    child.material.metalness = Math.min(child.material.metalness, 0.4);
+                                }
+                                if (child.material.roughness !== undefined) {
+                                    child.material.roughness = Math.max(child.material.roughness, 0.25);
+                                }
+                            }
+                        }
+
                         // Bind materials for light nodes in GLTF
                         if (child.name === 'lights') {
                             this.gltfHeadlightMat = new THREE.MeshStandardMaterial({
                                 color: 0xffffff,
                                 emissive: 0xffffff,
                                 emissiveIntensity: 1.2,
-                                metalness: 0.8,
-                                roughness: 0.1,
+                                metalness: 0.5,
+                                roughness: 0.2,
                             });
                             child.material = this.gltfHeadlightMat;
                         }
@@ -266,15 +293,15 @@ export class Vehicle {
                     this.gltfFrontWheels = [wheelFL, wheelFR];
                 }
 
-                // Apply glossy Ferrari Red body paint
+                // Apply glossy Ferrari Red body paint with balanced moonlight sheen
                 const bodyMesh = carModel.getObjectByName('body');
                 if (bodyMesh) {
                     bodyMesh.material = new THREE.MeshPhysicalMaterial({
                         color: 0xd11a2a,
-                        metalness: 0.9,
-                        roughness: 0.08,
-                        clearcoat: 1.0,
-                        clearcoatRoughness: 0.03,
+                        metalness: 0.45,
+                        roughness: 0.25,
+                        clearcoat: 0.7,
+                        clearcoatRoughness: 0.15,
                     });
                 }
 
@@ -307,66 +334,102 @@ export class Vehicle {
 
         // Dynamic gear acceleration scaling across 6 gears (0-300 km/h)
         const kmh = Math.abs(this.speed * 3.6);
-        let gearMult = 1.15;
-        if (kmh >= 250) gearMult = 0.28;      // Gear 6 (250-300 km/h)
-        else if (kmh >= 200) gearMult = 0.40; // Gear 5 (200-250 km/h)
-        else if (kmh >= 150) gearMult = 0.55; // Gear 4 (150-200 km/h)
-        else if (kmh >= 100) gearMult = 0.75; // Gear 3 (100-150 km/h)
-        else if (kmh >= 50)  gearMult = 0.95; // Gear 2 (50-100 km/h)
-        else                 gearMult = 1.15; // Gear 1 (0-50 km/h)
+        let gearMult = 1.25;
+        if (kmh >= 250) gearMult = 0.35;      // Gear 6 (250-300 km/h)
+        else if (kmh >= 200) gearMult = 0.50; // Gear 5 (200-250 km/h)
+        else if (kmh >= 150) gearMult = 0.70; // Gear 4 (150-200 km/h)
+        else if (kmh >= 100) gearMult = 0.88; // Gear 3 (100-150 km/h)
+        else if (kmh >= 50)  gearMult = 1.05; // Gear 2 (50-100 km/h)
+        else                 gearMult = 1.25; // Gear 1 (0-50 km/h)
 
         // Nitro
-        this.isNitro = input.nitro && this.speed > 5;
+        this.isNitro = input.nitro && this.speed > 3;
         const boost = this.isNitro ? this.nitroBoost : 1;
 
         // Acceleration / brake with sensitivity scaling
         const accelRate = this.baseAcceleration * gearMult * boost * sensMult;
         const brakeRate = this.brakeForce * sensMult;
 
-        if (input.forward) this.speed += accelRate * dt;
+        if (input.forward) {
+            if (this.speed < -0.5) {
+                // Apply brakes when reversing
+                this.speed += brakeRate * dt;
+            } else {
+                this.speed += accelRate * dt;
+            }
+        }
         if (input.backward) {
-            this.speed > 1
-                ? (this.speed -= brakeRate * dt)
-                : (this.speed -= this.baseAcceleration * 0.5 * dt);
+            if (this.speed > 0.5) {
+                // Apply brakes when moving forward
+                this.speed -= brakeRate * dt;
+            } else {
+                // Accelerate in reverse
+                this.speed -= accelRate * 0.75 * dt;
+            }
         }
 
         // Clamp to top speed 300 km/h (or ~330 km/h with nitro)
         const cap = this.isNitro ? this.maxSpeed * 1.1 : this.maxSpeed;
         this.speed = Math.max(-this.reverseMaxSpeed, Math.min(this.speed, cap));
 
-        // Drag
+        // Drag friction
         if (!input.forward && !input.backward) this.speed *= this.drag;
 
-        // Handbrake
-        if (input.handbrake && this.speed > 0) this.speed *= 0.96;
-
-        // Dead zone
-        if (Math.abs(this.speed) < 0.1 && !input.forward && !input.backward) this.speed = 0;
-
-        // Steering
-        this.steerAngle = 0;
-        if (Math.abs(this.speed) > 0.5) {
-            const sf = Math.abs(this.speed) / this.maxSpeed;
-            const reduction = 1 - sf * 0.5;
-            const hbBoost = input.handbrake ? 1.5 : 1;
-            const turn = this.turnSpeed * sensMult * Math.max(reduction, 0.3) * hbBoost * dt;
-            const dir = this.speed >= 0 ? 1 : -1;
-            if (input.left) {
-                this.heading += turn * dir;
-                this.steerAngle = 1;
-            }
-            if (input.right) {
-                this.heading -= turn * dir;
-                this.steerAngle = -1;
-            }
+        // Dead zone for near-zero speed
+        if (Math.abs(this.speed) < 0.15 && !input.forward && !input.backward) {
+            this.speed = 0;
         }
 
-        // Movement
-        this.mesh.position.x += -Math.sin(this.heading) * this.speed * dt;
-        this.mesh.position.z += -Math.cos(this.heading) * this.speed * dt;
-        this.mesh.rotation.y = this.heading;
+        // Steering input smoothing
+        const targetSteer = input.left ? 1 : input.right ? -1 : 0;
+        this.currentSteer = THREE.MathUtils.lerp(this.currentSteer, targetSteer, dt * 12.0);
+        this.steerAngle = this.currentSteer;
 
-        // Wheel spin
+        // Turning physics calculation (works at low speed, high speed, and standstill roll)
+        const speedFactor = Math.min(1.0, Math.abs(this.speed) / 4.0); // allows turning even at low speed
+        const isMoving = Math.abs(this.speed) > 0.15 || input.forward || input.backward;
+
+        if (isMoving && Math.abs(this.currentSteer) > 0.01) {
+            const highSpeedDamp = 1.0 - (Math.abs(this.speed) / this.maxSpeed) * 0.35;
+            const handbrakeTurnBoost = input.handbrake ? 1.6 : 1.0;
+            const turnRate = this.turnSpeed * sensMult * Math.max(speedFactor, 0.45) * highSpeedDamp * handbrakeTurnBoost;
+            const dir = this.speed >= 0 ? 1 : -1;
+            this.heading += this.currentSteer * turnRate * dir * dt;
+        }
+
+        // Handbrake & Drift lateral slip angle physics
+        let grip = 0.88;
+        if (input.handbrake && Math.abs(this.speed) > 3) {
+            grip = 0.25; // Drift mode: low side grip
+            this.speed *= (1.0 - 0.4 * dt); // Moderate speed bleed during drift
+        }
+
+        // Lateral acceleration / drift side-velocity
+        const latForce = -Math.sin(this.currentSteer * 0.5) * this.speed * 0.45;
+        this.lateralVelocity = THREE.MathUtils.lerp(this.lateralVelocity, latForce, dt * (10.0 * grip));
+
+        // World movement update: combines forward velocity + lateral drift displacement
+        const forwardX = -Math.sin(this.heading) * this.speed;
+        const forwardZ = -Math.cos(this.heading) * this.speed;
+        const rightX = Math.cos(this.heading) * this.lateralVelocity;
+        const rightZ = -Math.sin(this.heading) * this.lateralVelocity;
+
+        this.mesh.position.x += (forwardX + rightX) * dt;
+        this.mesh.position.z += (forwardZ + rightZ) * dt;
+
+        // Visual Chassis Body Dynamics (Roll on cornering & Pitch on accel/brake)
+        const targetRoll = -this.currentSteer * Math.min(Math.abs(this.speed) / 30.0, 1.0) * 0.08;
+        const accelState = input.forward ? -1 : (input.backward && this.speed > 1) ? 1.5 : 0;
+        const targetPitch = accelState * (Math.abs(this.speed) / 60.0) * 0.035;
+
+        this.rollAngle = THREE.MathUtils.lerp(this.rollAngle, targetRoll, dt * 8.0);
+        this.pitchAngle = THREE.MathUtils.lerp(this.pitchAngle, targetPitch, dt * 8.0);
+
+        this.mesh.rotation.y = this.heading;
+        this.mesh.rotation.z = this.rollAngle;
+        this.mesh.rotation.x = this.pitchAngle;
+
+        // Wheel spin animation
         const spin = -this.speed * dt * 3;
         if (this.isGltfLoaded && this.gltfWheels) {
             this.gltfWheels.forEach(w => {
@@ -379,13 +442,13 @@ export class Vehicle {
             });
         }
 
-        // Front-wheel steer visual
-        const maxSteerAngle = 0.3 * sensMult;
-        const steer = input.left ? maxSteerAngle : input.right ? -maxSteerAngle : 0;
+        // Front-wheel steer visual turning animation
+        const maxSteerVisualAngle = 0.45 * sensMult;
+        const visualSteerAngle = this.currentSteer * maxSteerVisualAngle;
         if (this.isGltfLoaded && this.gltfFrontWheels) {
-            this.gltfFrontWheels.forEach(w => (w.rotation.y = steer));
+            this.gltfFrontWheels.forEach(w => (w.rotation.y = visualSteerAngle));
         } else {
-            this.frontWheels.forEach(w => (w.rotation.y = steer));
+            this.frontWheels.forEach(w => (w.rotation.y = visualSteerAngle));
         }
 
         // Dynamic Car Lighting Update
