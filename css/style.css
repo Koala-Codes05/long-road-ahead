@@ -1,0 +1,458 @@
+/* ============================================
+   LONG ROAD AHEAD – Driveclub HUD & Global Styles
+   ============================================ */
+
+/* Reset */
+*,
+*::before,
+*::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #000;
+    font-family: 'Inter', 'Rajdhani', sans-serif;
+    cursor: crosshair;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+canvas {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1;
+}
+
+/* ============================================
+   LOADING SCREEN
+   ============================================ */
+
+#loading-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #0a0a1a 0%, #1a0a2e 50%, #0a1a2e 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    transition: opacity 1.2s ease-out;
+}
+
+#loading-screen.fade-out {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.loader-content {
+    text-align: center;
+}
+
+.game-title {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(2rem, 6vw, 4.5rem);
+    font-weight: 900;
+    color: #fff;
+    text-shadow:
+        0 0 20px rgba(0, 170, 255, 0.8),
+        0 0 40px rgba(0, 170, 255, 0.4),
+        0 0 80px rgba(0, 170, 255, 0.2);
+    letter-spacing: 0.25em;
+    margin-bottom: 2rem;
+    animation: titlePulse 2s ease-in-out infinite;
+}
+
+@keyframes titlePulse {
+    0%, 100% {
+        text-shadow:
+            0 0 20px rgba(0, 170, 255, 0.8),
+            0 0 40px rgba(0, 170, 255, 0.4);
+    }
+    50% {
+        text-shadow:
+            0 0 30px rgba(0, 200, 255, 1),
+            0 0 60px rgba(0, 200, 255, 0.6),
+            0 0 100px rgba(0, 200, 255, 0.3);
+    }
+}
+
+.loader-subtitle {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.4);
+    letter-spacing: 0.5em;
+    margin-bottom: 2rem;
+    text-transform: uppercase;
+}
+
+.loader-bar {
+    width: 300px;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+    margin: 0 auto;
+    overflow: hidden;
+}
+
+.loader-fill {
+    width: 0%;
+    height: 100%;
+    background: linear-gradient(90deg, #00aaff, #00ffaa);
+    border-radius: 3px;
+    transition: width 0.2s ease;
+    box-shadow: 0 0 12px rgba(0, 170, 255, 0.8);
+}
+
+#start-btn {
+    font-family: 'Orbitron', monospace;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #fff;
+    background: linear-gradient(90deg, #00aaff, #00ffaa);
+    border: none;
+    padding: 12px 36px;
+    border-radius: 4px;
+    cursor: pointer;
+    letter-spacing: 0.2em;
+    box-shadow: 0 0 20px rgba(0, 170, 255, 0.6);
+    transition: all 0.2s ease;
+    margin-top: 1.5rem;
+}
+
+#start-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 35px rgba(0, 255, 170, 0.9);
+}
+
+/* ============================================
+   DRIVECLUB HUD STYLING
+   ============================================ */
+
+#hud {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 10;
+    color: #fff;
+    font-family: 'Inter', sans-serif;
+}
+
+/* Common HUD Labels */
+.dc-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.5);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+}
+
+/* Top-Left: Position & Time */
+#dc-top-left {
+    position: absolute;
+    top: 30px;
+    left: 40px;
+}
+
+#dc-pos {
+    font-size: 2.8rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
+#dc-pos .dc-total {
+    font-size: 1.5rem;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+#dc-time {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #ffffff;
+    margin-top: 4px;
+    letter-spacing: 0.05em;
+}
+
+/* Top-Center: Score Badge */
+#dc-top-center {
+    position: absolute;
+    top: 25px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #ffffff;
+    letter-spacing: 0.08em;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+}
+
+#dc-top-center .dc-star {
+    font-size: 1.4rem;
+    color: #ffffff;
+    margin-left: 4px;
+}
+
+/* Weather Preset Selector Bar */
+#weather-selector {
+    position: absolute;
+    top: 75px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    pointer-events: auto;
+}
+
+.weather-btn {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.6);
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 5px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(4px);
+}
+
+.weather-btn:hover {
+    color: #ffffff;
+    border-color: rgba(0, 170, 255, 0.6);
+}
+
+.weather-btn.active {
+    color: #00ffcc;
+    border-color: #00ffcc;
+    background: rgba(0, 255, 204, 0.15);
+    box-shadow: 0 0 10px rgba(0, 255, 204, 0.3);
+}
+
+/* Vehicle Lighting Status Bar (Positioned in Bottom-Right Gauge Cluster) */
+#lights-hud-bar {
+    position: absolute;
+    bottom: 195px;
+    right: 35px;
+    display: flex;
+    gap: 5px;
+    align-items: center;
+    pointer-events: auto;
+    z-index: 12;
+}
+
+.light-badge {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.35);
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 3px 8px;
+    border-radius: 3px;
+    backdrop-filter: blur(4px);
+    transition: all 0.2s ease;
+}
+
+.light-badge.active-low {
+    color: #00e5ff;
+    border-color: #00e5ff;
+    background: rgba(0, 229, 255, 0.15);
+    box-shadow: 0 0 8px rgba(0, 229, 255, 0.4);
+}
+
+.light-badge.active-high {
+    color: #ffffff;
+    border-color: #ffffff;
+    background: rgba(255, 255, 255, 0.25);
+    box-shadow: 0 0 14px rgba(255, 255, 255, 0.7);
+    text-shadow: 0 0 6px #ffffff;
+}
+
+.light-badge.active-amber {
+    color: #ffaa00;
+    border-color: #ffaa00;
+    background: rgba(255, 170, 0, 0.2);
+    box-shadow: 0 0 10px rgba(255, 170, 0, 0.5);
+    animation: blinkerPulse 0.4s ease-in-out infinite alternate;
+}
+
+.light-badge.active-neon {
+    color: #00ff88;
+    border-color: #00ff88;
+    background: rgba(0, 255, 136, 0.15);
+    box-shadow: 0 0 8px rgba(0, 255, 136, 0.4);
+}
+
+@keyframes blinkerPulse {
+    from { opacity: 0.5; transform: scale(0.96); }
+    to { opacity: 1.0; transform: scale(1.04); }
+}
+
+/* Top-Right: Lap Counter */
+#dc-top-right {
+    position: absolute;
+    top: 30px;
+    right: 40px;
+    text-align: right;
+}
+
+#dc-lap {
+    font-size: 2.5rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
+/* Bottom-Left: Track Minimap */
+#dc-minimap {
+    position: absolute;
+    bottom: 35px;
+    left: 35px;
+    width: 140px;
+    height: 140px;
+}
+
+.minimap-svg {
+    width: 100%;
+    height: 100%;
+    filter: drop-shadow(0 2px 8px rgba(0,0,0,0.8));
+}
+
+/* Precision Badge */
+#precision-badge {
+    position: absolute;
+    bottom: 228px;
+    right: 35px;
+    font-family: 'Orbitron', monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #00ffcc;
+    background: rgba(0, 255, 204, 0.12);
+    border: 1px solid rgba(0, 255, 204, 0.4);
+    padding: 3px 10px;
+    border-radius: 3px;
+    letter-spacing: 0.15em;
+    box-shadow: 0 0 10px rgba(0, 255, 204, 0.3);
+}
+
+/* Bottom-Right: Driveclub Circular Dial Gauge */
+#dc-gauge-panel {
+    position: absolute;
+    bottom: 25px;
+    right: 35px;
+    width: 160px;
+    height: 160px;
+}
+
+.gauge-svg {
+    width: 100%;
+    height: 100%;
+}
+
+.gauge-center-content {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -45%);
+    text-align: center;
+}
+
+#speed-value {
+    font-family: 'Inter', sans-serif;
+    font-size: 2.8rem;
+    font-weight: 800;
+    line-height: 0.9;
+    color: #ffffff;
+}
+
+#speed-unit {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.5);
+    letter-spacing: 0.2em;
+    margin-top: 2px;
+}
+
+#gear-box {
+    margin-top: 6px;
+    display: inline-block;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    padding: 1px 8px;
+    border-radius: 2px;
+    background: rgba(0, 0, 0, 0.4);
+}
+
+#gear-display {
+    font-family: 'Inter', sans-serif;
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: #ffffff;
+}
+
+/* Controls Hint */
+#controls-hint {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.3);
+    font-weight: 400;
+    transition: opacity 3s ease-out;
+    white-space: nowrap;
+}
+
+#controls-hint span {
+    font-family: 'Orbitron', monospace;
+    font-weight: 700;
+    color: rgba(0, 170, 255, 0.6);
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    border: 1px solid rgba(0, 170, 255, 0.3);
+    border-radius: 3px;
+    margin-right: 2px;
+    display: inline-block;
+}
+
+/* ============================================
+   SPEED OVERLAY
+   ============================================ */
+
+#speed-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 5;
+    opacity: 0;
+    background: radial-gradient(
+        ellipse at center,
+        transparent 35%,
+        rgba(0, 15, 30, 0.25) 70%,
+        rgba(0, 10, 20, 0.5) 100%
+    );
+    transition: opacity 0.3s ease;
+}
+
+#speed-overlay.nitro-active {
+    background: radial-gradient(
+        ellipse at center,
+        transparent 25%,
+        rgba(0, 80, 200, 0.1) 50%,
+        rgba(255, 100, 0, 0.15) 75%,
+        rgba(0, 30, 80, 0.4) 100%
+    );
+}

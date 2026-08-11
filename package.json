@@ -1,0 +1,12 @@
+{
+    "name": "long-road-ahead",
+    "version": "0.1.0",
+    "description": "Open-world procedural racing game inspired by Need for Speed – built with Three.js",
+    "private": true,
+    "scripts": {
+        "dev": "npx -y serve . -l 3000 --no-clipboard",
+        "start": "npx -y serve . -l 3000 --no-clipboard"
+    },
+    "keywords": ["racing", "threejs", "procedural", "webgl"],
+    "license": "MIT"
+}
