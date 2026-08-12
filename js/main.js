@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { Lensflare, LensflareElement } from 'three/addons/objects/Lensflare.js';
 
 import { Vehicle } from './vehicle.js';
 import { World } from './world.js';
@@ -10,11 +11,11 @@ import { WeatherSystem } from './weather.js';
 import { createMotionBlurPass } from './motionBlurShader.js';
 
 /* =============================================
-   SCENE (Need for Speed 2015 Urban Atmosphere)
+   SCENE (Moonlit Urban Night Atmosphere)
    ============================================= */
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x060810);
-scene.fog = new THREE.FogExp2(0x060810, 0.004);
+scene.background = new THREE.Color(0x0c1628);
+scene.fog = new THREE.FogExp2(0x0c1628, 0.0022);
 
 /* =============================================
    CAMERA (Clean Chase View)
@@ -28,15 +29,18 @@ camera.position.set(0, 4, 10);
    RENDERER
    ============================================= */
 const renderer = new THREE.WebGLRenderer({
-    antialias: true,
+    antialias: false,
     powerPreference: 'high-performance',
+    precision: 'mediump',
+    stencil: false,
+    depth: true,
 });
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.15;
+renderer.toneMappingExposure = 1.08;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
 
@@ -48,9 +52,9 @@ composer.addPass(new RenderPass(scene, camera));
 
 const bloomPass = new UnrealBloomPass(
     new THREE.Vector2(window.innerWidth, window.innerHeight),
-    0.75, // strength
-    0.45, // radius
-    0.80, // threshold
+    0.45, // strength
+    0.40, // radius
+    0.85, // threshold
 );
 composer.addPass(bloomPass);
 
@@ -58,34 +62,206 @@ const motionBlurPass = createMotionBlurPass();
 composer.addPass(motionBlurPass);
 
 /* =============================================
-   LIGHTING (Warm Sodium City Glow Environment)
+   LIGHTING (Atmospheric Silver Moonlight & Ambient Sky)
    ============================================= */
-scene.add(new THREE.AmbientLight(0x332222, 0.9));
-scene.add(new THREE.HemisphereLight(0xff8833, 0x050810, 0.7));
+scene.add(new THREE.AmbientLight(0x556d90, 1.45)); // Soft ambient moonlight fill
+scene.add(new THREE.HemisphereLight(0x7095c5, 0x222a38, 1.35)); // Sky/Ground moonlight balance
 
-const moon = new THREE.DirectionalLight(0xffaa55, 0.7);
-moon.position.set(30, 80, -50);
+const moon = new THREE.DirectionalLight(0xd5e5ff, 1.05); // Balanced directional moonlight (no harsh glare)
+moon.position.set(15, 65, -160);
 moon.castShadow = true;
-moon.shadow.mapSize.set(2048, 2048);
-moon.shadow.camera.left = -50;
-moon.shadow.camera.right = 50;
-moon.shadow.camera.top = 50;
-moon.shadow.camera.bottom = -50;
-moon.shadow.camera.near = 0.5;
-moon.shadow.camera.far = 200;
+moon.shadow.mapSize.set(1024, 1024);
+moon.shadow.camera.left = -80;
+moon.shadow.camera.right = 80;
+moon.shadow.camera.top = 80;
+moon.shadow.camera.bottom = -80;
+moon.shadow.camera.near = 10;
+moon.shadow.camera.far = 400;
 scene.add(moon);
 scene.add(moon.target);
 
 /* =============================================
-   SKY DOME (NFS 2015 Warm Horizon Gradient Shader)
+   PHOTOREALISTIC ANAMORPHIC LENS FLARE SYSTEM
+   ============================================= */
+function createFlareCenterTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512; canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+
+    const grad = ctx.createRadialGradient(256, 256, 0, 256, 256, 250);
+    grad.addColorStop(0, 'rgba(255, 255, 255, 1.0)');
+    grad.addColorStop(0.15, 'rgba(210, 235, 255, 0.8)');
+    grad.addColorStop(0.4, 'rgba(110, 170, 255, 0.3)');
+    grad.addColorStop(0.7, 'rgba(50, 90, 200, 0.08)');
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 512, 512);
+
+    ctx.strokeStyle = 'rgba(190, 220, 255, 0.2)';
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 12; i++) {
+        const angle = (i / 12) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(256, 256);
+        ctx.lineTo(256 + Math.cos(angle) * 240, 256 + Math.sin(angle) * 240);
+        ctx.stroke();
+    }
+    return new THREE.CanvasTexture(canvas);
+}
+
+function createAnamorphicStreakTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024; canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+
+    const grad = ctx.createLinearGradient(0, 64, 1024, 64);
+    grad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    grad.addColorStop(0.2, 'rgba(70, 130, 255, 0.1)');
+    grad.addColorStop(0.45, 'rgba(170, 215, 255, 0.65)');
+    grad.addColorStop(0.5, 'rgba(255, 255, 255, 0.95)');
+    grad.addColorStop(0.55, 'rgba(170, 215, 255, 0.65)');
+    grad.addColorStop(0.8, 'rgba(70, 130, 255, 0.1)');
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 56, 1024, 16);
+
+    const gradY = ctx.createLinearGradient(512, 0, 512, 128);
+    gradY.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    gradY.addColorStop(0.4, 'rgba(90, 150, 255, 0.5)');
+    gradY.addColorStop(0.5, 'rgba(255, 255, 255, 1.0)');
+    gradY.addColorStop(0.6, 'rgba(90, 150, 255, 0.5)');
+    gradY.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.globalCompositeOperation = 'destination-in';
+    ctx.fillStyle = gradY;
+    ctx.fillRect(0, 0, 1024, 128);
+
+    return new THREE.CanvasTexture(canvas);
+}
+
+function createHexagonGhostTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256; canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        const x = 128 + Math.cos(a) * 90;
+        const y = 128 + Math.sin(a) * 90;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+
+    const grad = ctx.createRadialGradient(128, 128, 10, 128, 128, 100);
+    grad.addColorStop(0, 'rgba(130, 175, 255, 0.3)');
+    grad.addColorStop(0.7, 'rgba(80, 120, 230, 0.15)');
+    grad.addColorStop(1, 'rgba(30, 70, 170, 0.03)');
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(190, 220, 255, 0.5)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    return new THREE.CanvasTexture(canvas);
+}
+
+const flareMainTex = createFlareCenterTexture();
+const flareStreakTex = createAnamorphicStreakTexture();
+const flareGhostTex = createHexagonGhostTexture();
+
+const moonLensflare = new Lensflare();
+moonLensflare.addElement(new LensflareElement(flareMainTex, 320, 0, new THREE.Color(0xdce8ff)));
+moonLensflare.addElement(new LensflareElement(flareStreakTex, 950, 0, new THREE.Color(0x70b5ff)));
+moonLensflare.addElement(new LensflareElement(flareGhostTex, 80, 0.25, new THREE.Color(0x6095ff)));
+moonLensflare.addElement(new LensflareElement(flareGhostTex, 120, 0.45, new THREE.Color(0x4075e0)));
+moonLensflare.addElement(new LensflareElement(flareGhostTex, 65, 0.75, new THREE.Color(0x80a5ff)));
+
+moon.add(moonLensflare);
+
+/* =============================================
+   3D MOON MESH & GLOWING HALO SPRITE
+   ============================================= */
+function createMoonTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+
+    const grad = ctx.createRadialGradient(256, 256, 10, 256, 256, 250);
+    grad.addColorStop(0, '#ffffff');
+    grad.addColorStop(0.6, '#e0ebff');
+    grad.addColorStop(0.85, '#b0cdff');
+    grad.addColorStop(1, '#6680b0');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 512, 512);
+
+    ctx.fillStyle = 'rgba(70, 90, 120, 0.25)';
+    const maria = [
+        { x: 180, y: 190, r: 90 }, { x: 300, y: 170, r: 75 },
+        { x: 330, y: 280, r: 85 }, { x: 210, y: 310, r: 100 },
+        { x: 140, y: 260, r: 60 }, { x: 360, y: 220, r: 50 }
+    ];
+    maria.forEach(m => {
+        ctx.beginPath();
+        ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
+        ctx.fill();
+    });
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+    for (let i = 0; i < 40; i++) {
+        const cx = Math.random() * 512;
+        const cy = Math.random() * 512;
+        const cr = 2 + Math.random() * 12;
+        ctx.beginPath();
+        ctx.arc(cx, cy, cr, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    return new THREE.CanvasTexture(canvas);
+}
+
+const moonGeo = new THREE.SphereGeometry(22, 32, 32);
+const moonTex = createMoonTexture();
+const moonMat = new THREE.MeshBasicMaterial({
+    map: moonTex,
+    color: 0xffffff,
+});
+const moonMesh = new THREE.Mesh(moonGeo, moonMat);
+moonMesh.position.set(15, 65, -160);
+scene.add(moonMesh);
+
+const haloCanvas = document.createElement('canvas');
+haloCanvas.width = 256; haloCanvas.height = 256;
+const hCtx = haloCanvas.getContext('2d');
+const hGrad = hCtx.createRadialGradient(128, 128, 10, 128, 128, 120);
+hGrad.addColorStop(0, 'rgba(210, 230, 255, 0.9)');
+hGrad.addColorStop(0.3, 'rgba(160, 200, 255, 0.5)');
+hGrad.addColorStop(0.7, 'rgba(110, 160, 245, 0.18)');
+hGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+hCtx.fillStyle = hGrad;
+hCtx.fillRect(0, 0, 256, 256);
+
+const haloMat = new THREE.SpriteMaterial({
+    map: new THREE.CanvasTexture(haloCanvas),
+    blending: THREE.AdditiveBlending,
+    transparent: true,
+    opacity: 0.9,
+});
+const moonHalo = new THREE.Sprite(haloMat);
+moonHalo.scale.set(130, 130, 1);
+moonMesh.add(moonHalo);
+
+/* =============================================
+   SKY DOME (Bright Silver Moonlight Night Sky Shader)
    ============================================= */
 const skyGeo = new THREE.SphereGeometry(400, 32, 32);
 const skyMat = new THREE.ShaderMaterial({
     uniforms: {
-        topColor: { value: new THREE.Color(0x060c18) },
-        bottomColor: { value: new THREE.Color(0x1a0a0f) }, // Warm city glow horizon
+        topColor: { value: new THREE.Color(0x0a1426) },
+        bottomColor: { value: new THREE.Color(0x1e304a) }, // Silver-blue horizon glow
         offset: { value: 15 },
-        exponent: { value: 0.35 },
+        exponent: { value: 0.45 },
     },
     vertexShader: `
         varying vec3 vWorldPosition;
@@ -218,8 +394,8 @@ function updateCamera(dt) {
     camera.fov = 60;
     camera.updateProjectionMatrix();
 
-    // Bloom ramps with speed
-    bloomPass.strength = 0.75 + sr * 0.8;
+    // Bloom ramps with speed (balanced for subtle glow)
+    bloomPass.strength = 0.45 + sr * 0.4;
 
     // Dynamic High-Speed Radial Motion Blur
     const nitroBlur = vehicle.isNitro ? 0.05 : 0.0;
@@ -232,7 +408,8 @@ function updateCamera(dt) {
 
     // Move sky dome & moonlight with player
     sky.position.copy(camera.position);
-    moon.position.set(vehicle.mesh.position.x + 30, 80, vehicle.mesh.position.z - 50);
+    moonMesh.position.set(vehicle.mesh.position.x + 15, 65, vehicle.mesh.position.z - 160);
+    moon.position.copy(moonMesh.position);
     moon.target.position.copy(vehicle.mesh.position);
     moon.target.updateMatrixWorld();
 }
@@ -360,12 +537,61 @@ const loadTimer = setInterval(() => {
 }, 100);
 
 /* =============================================
+   RTX 3050 TURBO MODE & HIGH-PRECISION FPS COUNTER
+   ============================================= */
+let isTurboMode = true;
+let lastFrameTime = performance.now();
+let frameCount = 0;
+let fpsTimer = 0;
+
+const elFpsVal = document.getElementById('fps-val');
+const elFrameTimeVal = document.getElementById('frametime-val');
+const elTurboBtn = document.getElementById('turbo-toggle-btn');
+
+if (elTurboBtn) {
+    elTurboBtn.addEventListener('click', () => {
+        isTurboMode = !isTurboMode;
+        if (isTurboMode) {
+            elTurboBtn.className = 'turbo-btn active';
+            elTurboBtn.textContent = '⚡ RTX 3050 TURBO MODE: ON';
+            renderer.setPixelRatio(1.0);
+            renderer.shadowMap.enabled = false;
+            if (world.lightPool) world.lightPool.forEach(l => l.visible = false);
+        } else {
+            elTurboBtn.className = 'turbo-btn';
+            elTurboBtn.textContent = '✨ CINEMATIC MODE';
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.autoUpdate = true;
+            if (world.lightPool) world.lightPool.forEach(l => l.visible = true);
+        }
+    });
+}
+
+/* =============================================
    GAME LOOP
    ============================================= */
 const clock = new THREE.Clock();
 
 function animate() {
     requestAnimationFrame(animate);
+
+    const now = performance.now();
+    const frameDtMs = now - lastFrameTime;
+    lastFrameTime = now;
+
+    frameCount++;
+    fpsTimer += frameDtMs;
+
+    if (fpsTimer >= 150) { // Refresh FPS HUD 6x per second
+        const currentFps = Math.round((frameCount * 1000) / fpsTimer);
+        const avgFrameTime = (fpsTimer / frameCount).toFixed(2);
+        if (elFpsVal) elFpsVal.textContent = currentFps;
+        if (elFrameTimeVal) elFrameTimeVal.textContent = avgFrameTime;
+        frameCount = 0;
+        fpsTimer = 0;
+    }
+
     const dt = Math.min(clock.getDelta(), 0.05);
 
     vehicle.update(dt, input);
@@ -374,7 +600,11 @@ function animate() {
     updateCamera(dt);
     updateHUD();
 
-    composer.render();
+    if (isTurboMode) {
+        renderer.render(scene, camera);
+    } else {
+        composer.render();
+    }
 }
 animate();
 

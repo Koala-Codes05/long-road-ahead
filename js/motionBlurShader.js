@@ -25,7 +25,7 @@ export const MotionBlurShader = {
         varying vec2 vUv;
 
         void main() {
-            if (uStrength < 0.001) {
+            if (uStrength < 0.005) {
                 gl_FragColor = texture2D(tDiffuse, vUv);
                 return;
             }
@@ -33,7 +33,7 @@ export const MotionBlurShader = {
             vec2 dir = vUv - uCenter;
             float dist = length(dir);
             vec4 color = vec4(0.0);
-            const int SAMPLES = 10;
+            const int SAMPLES = 5;
             
             // Radial streak factor increases toward outer screen edges
             float factor = uStrength * smoothstep(0.12, 0.95, dist);

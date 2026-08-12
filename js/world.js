@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 /**
  * World – Need for Speed 2015 Warm Sodium Streetlight & Highway City Generator.
@@ -21,7 +22,7 @@ export class World {
 
         // Dynamic light pool (PointLights that move with car)
         this.lightPool = [];
-        this.LIGHT_POOL_SIZE = 18;
+        this.LIGHT_POOL_SIZE = 6;
         this._createLightPool();
     }
 
@@ -30,23 +31,23 @@ export class World {
        ================================================== */
     _createMaterials() {
         this.roadMat = new THREE.MeshStandardMaterial({
-            color: 0x12121c, roughness: 0.06, metalness: 0.92, // High-gloss wet reflection
+            color: 0x1c2336, roughness: 0.12, metalness: 0.85, // High-gloss wet reflection under moonlight
         });
         this.sidewalkMat = new THREE.MeshStandardMaterial({
-            color: 0x1c1c28, roughness: 0.25, metalness: 0.3,
+            color: 0x2e364f, roughness: 0.35, metalness: 0.25,
         });
         this.whiteLineMat = new THREE.MeshStandardMaterial({
-            color: 0xcccccc, emissive: 0xaaaaaa, emissiveIntensity: 0.4,
+            color: 0xeeeeee, emissive: 0xcccccc, emissiveIntensity: 0.5,
         });
         this.yellowLineMat = new THREE.MeshStandardMaterial({
-            color: 0xff9900, emissive: 0xff8800, emissiveIntensity: 0.6,
+            color: 0xffaa00, emissive: 0xff8800, emissiveIntensity: 0.7,
         });
 
         this.buildingBaseMats = [
-            new THREE.MeshStandardMaterial({ color: 0x080812, roughness: 0.9, metalness: 0.1 }),
-            new THREE.MeshStandardMaterial({ color: 0x0a0918, roughness: 0.85, metalness: 0.15 }),
-            new THREE.MeshStandardMaterial({ color: 0x0e0814, roughness: 0.9, metalness: 0.1 }),
-            new THREE.MeshStandardMaterial({ color: 0x070c14, roughness: 0.85, metalness: 0.1 }),
+            new THREE.MeshStandardMaterial({ color: 0x182033, roughness: 0.8, metalness: 0.2 }),
+            new THREE.MeshStandardMaterial({ color: 0x1a2238, roughness: 0.8, metalness: 0.2 }),
+            new THREE.MeshStandardMaterial({ color: 0x221e33, roughness: 0.85, metalness: 0.2 }),
+            new THREE.MeshStandardMaterial({ color: 0x162636, roughness: 0.8, metalness: 0.2 }),
         ];
 
         this.neonMats = [
@@ -57,7 +58,7 @@ export class World {
         ];
 
         this.poleMat = new THREE.MeshStandardMaterial({
-            color: 0x222233, metalness: 0.85, roughness: 0.25,
+            color: 0x333b52, metalness: 0.85, roughness: 0.25,
         });
 
         // Warm Sodium Lamp Bulb Material (Tamed)
@@ -76,17 +77,17 @@ export class World {
         });
 
         this.groundMat = new THREE.MeshStandardMaterial({
-            color: 0x05050c, roughness: 0.95, metalness: 0.0,
+            color: 0x101626, roughness: 0.9, metalness: 0.0,
         });
     }
 
     _createBuildingTextures() {
         this.buildingTexMats = [];
         const configs = [
-            { base: [22, 22, 38], lit: [255, 170, 85], dark: [8, 8, 18] },  // Warm sodium windows
-            { base: [26, 26, 48], lit: [255, 204, 120], dark: [8, 8, 22] },
-            { base: [34, 22, 38], lit: [255, 120, 150], dark: [14, 8, 18] },
-            { base: [22, 34, 38], lit: [120, 220, 255], dark: [8, 18, 14] },
+            { base: [35, 45, 68], lit: [255, 190, 110], dark: [20, 26, 42] },  // Warm sodium windows
+            { base: [38, 48, 75], lit: [255, 215, 140], dark: [22, 28, 46] },
+            { base: [48, 38, 65], lit: [255, 140, 170], dark: [26, 22, 42] },
+            { base: [35, 55, 68], lit: [140, 230, 255], dark: [20, 32, 42] },
         ];
         configs.forEach(({ base, lit, dark }) => {
             const c = document.createElement('canvas');
@@ -202,40 +203,63 @@ export class World {
 
     _laneMarks(g, zC, zS) {
         const dashGeo = new THREE.PlaneGeometry(0.18, 3.5);
+        const whiteGeos = [];
+        const matrix = new THREE.Matrix4();
+        const rotMatrix = new THREE.Matrix4().makeRotationX(-Math.PI / 2);
 
         for (let z = zS; z > zS - this.chunkSize; z -= 7) {
-            const d = new THREE.Mesh(dashGeo, this.whiteLineMat);
-            d.rotation.x = -Math.PI / 2;
-            d.position.set(0, 0.025, z);
-            g.add(d);
+            const geo = dashGeo.clone();
+            matrix.makeTranslation(0, 0.025, z).multiply(rotMatrix);
+            geo.applyMatrix4(matrix);
+            whiteGeos.push(geo);
         }
 
         [-6, 6].forEach(x => {
             for (let z = zS; z > zS - this.chunkSize; z -= 12) {
-                const d = new THREE.Mesh(dashGeo, this.whiteLineMat);
-                d.rotation.x = -Math.PI / 2;
-                d.position.set(x, 0.025, z);
-                g.add(d);
+                const geo = dashGeo.clone();
+                matrix.makeTranslation(x, 0.025, z).multiply(rotMatrix);
+                geo.applyMatrix4(matrix);
+                whiteGeos.push(geo);
             }
         });
 
+        if (whiteGeos.length > 0) {
+            const mergedWhite = mergeGeometries(whiteGeos, false);
+            const whiteMesh = new THREE.Mesh(mergedWhite, this.whiteLineMat);
+            g.add(whiteMesh);
+        }
+
         const edgeGeo = new THREE.PlaneGeometry(0.22, this.chunkSize);
+        const yellowGeos = [];
         [-11.8, 11.8].forEach(x => {
-            const e = new THREE.Mesh(edgeGeo, this.yellowLineMat);
-            e.rotation.x = -Math.PI / 2;
-            e.position.set(x, 0.025, zC);
-            g.add(e);
+            const geo = edgeGeo.clone();
+            matrix.makeTranslation(x, 0.025, zC).multiply(rotMatrix);
+            geo.applyMatrix4(matrix);
+            yellowGeos.push(geo);
         });
+
+        if (yellowGeos.length > 0) {
+            const mergedYellow = mergeGeometries(yellowGeos, false);
+            const yellowMesh = new THREE.Mesh(mergedYellow, this.yellowLineMat);
+            g.add(yellowMesh);
+        }
     }
 
     _sidewalks(g, zC) {
         const geo = new THREE.BoxGeometry(4, 0.25, this.chunkSize);
+        const swGeos = [];
+        const matrix = new THREE.Matrix4();
         [-14, 14].forEach(x => {
-            const sw = new THREE.Mesh(geo, this.sidewalkMat);
-            sw.position.set(x, 0.125, zC);
-            sw.receiveShadow = true;
-            g.add(sw);
+            const sw = geo.clone();
+            matrix.makeTranslation(x, 0.125, zC);
+            sw.applyMatrix4(matrix);
+            swGeos.push(sw);
         });
+        if (swGeos.length > 0) {
+            const swMesh = new THREE.Mesh(mergeGeometries(swGeos, false), this.sidewalkMat);
+            swMesh.receiveShadow = true;
+            g.add(swMesh);
+        }
     }
 
     _buildings(g, zC, side) {
@@ -254,7 +278,8 @@ export class World {
             const bld = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
             const xOff = 18 + w / 2 + Math.random() * 8;
             bld.position.set(side * xOff, h / 2, z - d / 2);
-            bld.castShadow = true;
+            bld.matrixAutoUpdate = false;
+            bld.updateMatrix();
             bld.receiveShadow = true;
             g.add(bld);
 
@@ -273,7 +298,9 @@ export class World {
             const mat = this.buildingBaseMats[Math.floor(Math.random() * this.buildingBaseMats.length)];
             const bld = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
             bld.position.set(side * (45 + w / 2 + Math.random() * 30), h / 2, z - d / 2);
-            bld.castShadow = true;
+            bld.matrixAutoUpdate = false;
+            bld.updateMatrix();
+            bld.receiveShadow = true;
             g.add(bld);
             z -= d + gap;
         }
@@ -303,40 +330,57 @@ export class World {
     }
 
     /* ==================================================
-       NEED FOR SPEED 2015 SODIUM STREETLIGHTS
+       NEED FOR SPEED 2015 SODIUM STREETLIGHTS (BATCHED)
        ================================================== */
     _streetLights(g, zS) {
-        const spacing = 15;
+        const spacing = 20;
         const poleGeo = new THREE.CylinderGeometry(0.08, 0.1, 7.2, 6);
         const armGeo = new THREE.BoxGeometry(3, 0.08, 0.08);
-        const bulbGeo = new THREE.SphereGeometry(0.25, 10, 10);
-        const haloGeo = new THREE.CircleGeometry(0.6, 12);
+        const bulbGeo = new THREE.SphereGeometry(0.25, 8, 8);
+        const haloGeo = new THREE.CircleGeometry(0.6, 8);
+
+        const poleGeos = [];
+        const armGeos = [];
+        const bulbGeos = [];
+        const haloGeos = [];
+        const matrix = new THREE.Matrix4();
+        const rotHaloMatrix = new THREE.Matrix4().makeRotationX(Math.PI / 2);
 
         for (let z = zS; z > zS - this.chunkSize; z -= spacing) {
             [-13.5, 13.5].forEach(x => {
                 const dir = x > 0 ? -1 : 1;
 
-                // Metallic Pole
-                const pole = new THREE.Mesh(poleGeo, this.poleMat);
-                pole.position.set(x, 3.6, z);
-                g.add(pole);
+                // Pole
+                const p = poleGeo.clone();
+                matrix.makeTranslation(x, 3.6, z);
+                p.applyMatrix4(matrix);
+                poleGeos.push(p);
 
-                // Arm extension over highway
-                const arm = new THREE.Mesh(armGeo, this.poleMat);
-                arm.position.set(x + dir * 1.5, 7.0, z);
-                g.add(arm);
+                // Arm
+                const a = armGeo.clone();
+                matrix.makeTranslation(x + dir * 1.5, 7.0, z);
+                a.applyMatrix4(matrix);
+                armGeos.push(a);
 
-                // Glowing Sodium Bulb Lamp
-                const bulb = new THREE.Mesh(bulbGeo, this.bulbMat);
-                bulb.position.set(x + dir * 2.8, 6.8, z);
-                g.add(bulb);
+                // Bulb
+                const b = bulbGeo.clone();
+                matrix.makeTranslation(x + dir * 2.8, 6.8, z);
+                b.applyMatrix4(matrix);
+                bulbGeos.push(b);
 
-                // Soft Subtle Light Halo Disc
-                const halo = new THREE.Mesh(haloGeo, this.haloMat);
-                halo.position.set(x + dir * 2.8, 6.8, z);
-                halo.rotation.x = Math.PI / 2; // Facing down toward road
-                g.add(halo);
+                // Halo
+                const h = haloGeo.clone();
+                matrix.makeTranslation(x + dir * 2.8, 6.8, z).multiply(rotHaloMatrix);
+                h.applyMatrix4(matrix);
+                haloGeos.push(h);
             });
+        }
+
+        if (poleGeos.length > 0) {
+            g.add(new THREE.Mesh(mergeGeometries(poleGeos, false), this.poleMat));
+            g.add(new THREE.Mesh(mergeGeometries(armGeos, false), this.poleMat));
+            g.add(new THREE.Mesh(mergeGeometries(bulbGeos, false), this.bulbMat));
+            g.add(new THREE.Mesh(mergeGeometries(haloGeos, false), this.haloMat));
         }
     }
 }
