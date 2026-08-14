@@ -164,6 +164,16 @@ scene.add(moon);
 scene.add(moon.target);
 
 /* =============================================
+   CAMERA OVERHEAD LIGHT (100m Non-Specular Diffuse + Soft Fill)
+   Illuminates the car and 100m environment without specular glare spots on car paint
+   ============================================= */
+const cameraDiffuseLight = new THREE.HemisphereLight(0xddeeff, 0x445566, 1.4);
+scene.add(cameraDiffuseLight);
+
+const cameraLight = new THREE.PointLight(0xddeeff, 2.8, 120, 1.2);
+scene.add(cameraLight);
+
+/* =============================================
    PHOTOREALISTIC ANAMORPHIC LENS FLARE SYSTEM
    ============================================= */
 function createFlareCenterTexture() {
@@ -519,8 +529,8 @@ function updateCamera(dt) {
         camLookAt.lerp(camTarget, s);
         camera.lookAt(camLookAt);
 
-        // Disable 2D windshield glass droplets in 3rd-person chase camera so drops don't float like flies over the car
-        if (weather.rainPass) weather.rainPass.enabled = false;
+        // Enable screen-space rain glass droplets & refraction pass on 3rd-person chase camera view from rain_system_backup
+        if (weather.rainPass) weather.rainPass.enabled = (weather.weatherType !== 3);
     }
 
     /* ---------------------------------------------
@@ -597,8 +607,10 @@ function updateCamera(dt) {
     filmGrainPass.uniforms.uTime.value += dt;
     filmGrainPass.uniforms.uSpeedBoost.value = sr;
 
-    // Move sky dome & moonlight with player
+    // Move sky dome & overhead camera lights (100m diffuse coverage, zero specular glare on car)
     sky.position.copy(camera.position);
+    cameraDiffuseLight.position.set(camera.position.x, camera.position.y + 15, camera.position.z);
+    cameraLight.position.set(camera.position.x, camera.position.y + 28, camera.position.z);
     moonMesh.position.set(vehicle.mesh.position.x + 15, 65, vehicle.mesh.position.z - 160);
     moon.position.copy(moonMesh.position);
     moon.target.position.copy(vehicle.mesh.position);
