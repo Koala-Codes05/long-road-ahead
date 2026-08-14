@@ -6,7 +6,7 @@ import { AcceleratingSystem } from './accelerating.js';
 import { TurningSystem } from './turning.js';
 import { DriftingSystem } from './drifting.js';
 import { ManeuversSystem } from './maneuvers.js';
-import { getRoadPoint } from './world.js';
+import { getRoadPoint, getRoadWidth } from './world.js';
 
 /**
  * Vehicle — Modular Core Supercar Physics & Rendering Engine.
@@ -51,8 +51,10 @@ export class Vehicle {
         this.maneuversSystem = new ManeuversSystem(this);
 
         // Rendering & Lights Setup
-        this.wheels = [];
-        this.frontWheels = [];
+        this.wheelSpinGroups = [];
+        this.frontSteerPivots = [];
+        this.gltfSpinWheels = [];
+        this.gltfSteerPivots = [];
         this.isGltfLoaded = false;
 
         this.mesh = new THREE.Group();
@@ -90,54 +92,43 @@ export class Vehicle {
         this.blinkerTimer = 0;
         this.blinkerState = false;
 
-        // Headlights (SpotLights)
+        // Two Bright Hard Headlight Spotlights (Left and Right)
         this.headlightSpots = [];
-        const hlPos = [-0.70, 0.70];
-        hlPos.forEach((x) => {
-            const spot = new THREE.SpotLight(0xf0f5ff, 8.0, 60, Math.PI / 5.5, 0.8, 1.2);
-            spot.position.set(x, 0.55, -2.0);
+        this.headlightTargets = [];
+        
+        const offsets = [-0.70, 0.70];
+        offsets.forEach(() => {
+            const spot = new THREE.SpotLight(0xffffff, 200.0, 200, Math.PI / 4, 0.3, 1.0);
             spot.castShadow = false;
+            this.scene.add(spot);
 
             const target = new THREE.Object3D();
-            target.position.set(x, -0.4, -40);
-            this.lightsGroup.add(target);
+            this.scene.add(target);
             spot.target = target;
-            this.lightsGroup.add(spot);
+
             this.headlightSpots.push(spot);
+            this.headlightTargets.push(target);
+        });
+
+        // Two Soft Front Fill PointLights (Left and Right)
+        this.headlightFillPoints = [];
+        offsets.forEach(() => {
+            const fillPoint = new THREE.PointLight(0xffffff, 25.0, 50, 1.0);
+            this.lightsGroup.add(fillPoint);
+            this.headlightFillPoints.push(fillPoint);
         });
 
         // Rear Brake Light Spot
-        this.rearBrakeSpot = new THREE.SpotLight(0xff1100, 0, 15, Math.PI / 3, 0.7, 1.2);
-        this.rearBrakeSpot.position.set(0, 0.3, 2.3);
-        const rearTarget = new THREE.Object3D();
-        rearTarget.position.set(0, -0.6, 8);
-        this.lightsGroup.add(rearTarget);
-        this.rearBrakeSpot.target = rearTarget;
-        this.lightsGroup.add(this.rearBrakeSpot);
+        this.rearBrakeSpot = new THREE.SpotLight(0xff1100, 0, 20, Math.PI / 3, 0.7, 1.2);
+        this.scene.add(this.rearBrakeSpot);
+        this.rearBrakeTarget = new THREE.Object3D();
+        this.scene.add(this.rearBrakeTarget);
+        this.rearBrakeSpot.target = this.rearBrakeTarget;
 
         // Reverse Light Point
-        this.reverseLightPoint = new THREE.PointLight(0xffffff, 0, 8);
+        this.reverseLightPoint = new THREE.PointLight(0xffffff, 0, 12);
         this.reverseLightPoint.position.set(0, 0.5, 2.4);
         this.lightsGroup.add(this.reverseLightPoint);
-
-        // Underglow Neon
-        const ugMat = new THREE.MeshStandardMaterial({
-            color: 0x0088ff,
-            emissive: 0x0088ff,
-            emissiveIntensity: 1.0,
-            transparent: true,
-            opacity: 0.2,
-            side: THREE.DoubleSide,
-            depthWrite: false,
-        });
-        this.underGlowMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 4.0), ugMat);
-        this.underGlowMesh.rotation.x = -Math.PI / 2;
-        this.underGlowMesh.position.y = 0.03;
-        this.lightsGroup.add(this.underGlowMesh);
-
-        this.underLight = new THREE.PointLight(0x0088ff, 2.0, 6.0);
-        this.underLight.position.set(0, 0.15, 0);
-        this.lightsGroup.add(this.underLight);
     }
 
     /* ------------------------------------------------
@@ -270,54 +261,211 @@ export class Vehicle {
     /* ------------------------------------------------
        PROCEDURAL CAR MODEL FALLBACK & GLTF LOADER
        ------------------------------------------------ */
+    /* ------------------------------------------------
+       PROCEDURAL CAR MODEL FALLBACK & GLTF LOADER
+       ------------------------------------------------ */
     _createCarModel() {
-        const group = new THREE.Group();
-        const bodyMat = new THREE.MeshStandardMaterial({ color: 0xff2200, metalness: 0.95, roughness: 0.06 });
+        const rootGroup = new THREE.Group();
+        this.dissectedParts = [];
+        this.wheels = [];
+        this.frontWheels = [];
+        this.wheelSpinGroups = [];
 
-        const body = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.5, 4.8), bodyMat);
-        body.position.y = 0.55;
-        body.castShadow = true;
-        group.add(body);
+        // Photorealistic Materials
+        const bodyMat = new THREE.MeshStandardMaterial({ color: 0xd11a2a, metalness: 0.90, roughness: 0.12 });
+        const carbonMat = new THREE.MeshStandardMaterial({ color: 0x111115, metalness: 0.95, roughness: 0.15 });
+        const chassisMat = new THREE.MeshStandardMaterial({ color: 0x22252a, metalness: 0.85, roughness: 0.30 });
+        const glassMat = new THREE.MeshStandardMaterial({ color: 0x112233, metalness: 0.9, roughness: 0.05, transparent: true, opacity: 0.55 });
+        const engineMat = new THREE.MeshStandardMaterial({ color: 0x555566, metalness: 0.92, roughness: 0.20 });
+        const engineCoverMat = new THREE.MeshStandardMaterial({ color: 0xcc1100, metalness: 0.80, roughness: 0.25 });
+        const tireMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.65, metalness: 0.2 });
+        const rimMat = new THREE.MeshStandardMaterial({ color: 0xdddddd, metalness: 0.95, roughness: 0.08 });
+        const rotorMat = new THREE.MeshStandardMaterial({ color: 0x888899, metalness: 0.92, roughness: 0.25 });
+        const caliperMat = new THREE.MeshStandardMaterial({ color: 0xee1100, metalness: 0.85, roughness: 0.18 });
 
-        const hood = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.2, 1.5), bodyMat);
-        hood.position.set(0, 0.9, -1.2);
-        hood.rotation.x = 0.15;
-        hood.castShadow = true;
-        group.add(hood);
+        const addDissectedPart = (mesh, homePos, explodedPos, homeRot = [0, 0, 0], explodedRot = [0, 0, 0]) => {
+            mesh.position.set(...homePos);
+            mesh.rotation.set(...homeRot);
+            rootGroup.add(mesh);
+            const entry = {
+                mesh,
+                homePos: new THREE.Vector3(...homePos),
+                explodedPos: new THREE.Vector3(...explodedPos),
+                homeRot: new THREE.Euler(...homeRot),
+                explodedRot: new THREE.Euler(...explodedRot),
+            };
+            this.dissectedParts.push(entry);
+            return entry;
+        };
 
-        const cabinMat = new THREE.MeshStandardMaterial({ color: 0x111122, metalness: 1.0, roughness: 0.05, transparent: true, opacity: 0.7 });
-        const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.55, 1.8), cabinMat);
-        cabin.position.set(0, 1.07, 0.2);
-        cabin.castShadow = true;
-        group.add(cabin);
+        // 1. Chassis & Floorboard Frame
+        const chassisGroup = new THREE.Group();
+        const floor = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.12, 4.4), chassisMat);
+        floor.position.y = 0.25;
+        chassisGroup.add(floor);
+        [-0.85, 0.85].forEach(x => {
+            const rail = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.35, 4.2), chassisMat);
+            rail.position.set(x, 0.35, 0);
+            chassisGroup.add(rail);
+        });
+        addDissectedPart(chassisGroup, [0, 0.1, 0], [0, -0.6, 0]);
 
-        const wheelGeo = new THREE.CylinderGeometry(0.38, 0.38, 0.25, 16);
-        const wheelMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.5, metalness: 0.4 });
-        const rimGeo = new THREE.CylinderGeometry(0.25, 0.25, 0.26, 8);
-        const rimMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.95, roughness: 0.1 });
+        // 2. Front Hood
+        const hoodGroup = new THREE.Group();
+        const hoodMesh = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.12, 1.4), bodyMat);
+        hoodGroup.add(hoodMesh);
+        addDissectedPart(hoodGroup, [0, 0.85, -1.25], [0, 2.2, -2.6], [0.1, 0, 0], [0.4, 0, 0]);
+
+        // 3. Left Scissor Door
+        const doorLGroup = new THREE.Group();
+        const doorL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.65, 1.6), bodyMat);
+        doorLGroup.add(doorL);
+        const winL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.45, 1.0), glassMat);
+        winL.position.set(0, 0.45, 0);
+        doorLGroup.add(winL);
+        addDissectedPart(doorLGroup, [-1.02, 0.75, -0.1], [-2.4, 1.9, -0.1], [0, 0, 0], [0, 0, -0.45]);
+
+        // 4. Right Scissor Door
+        const doorRGroup = new THREE.Group();
+        const doorR = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.65, 1.6), bodyMat);
+        doorRGroup.add(doorR);
+        const winR = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.45, 1.0), glassMat);
+        winR.position.set(0, 0.45, 0);
+        doorRGroup.add(winR);
+        addDissectedPart(doorRGroup, [1.02, 0.75, -0.1], [2.4, 1.9, -0.1], [0, 0, 0], [0, 0, 0.45]);
+
+        // 5. Front Bumper & Splitter
+        const fbGroup = new THREE.Group();
+        const fbMesh = new THREE.Mesh(new THREE.BoxGeometry(2.05, 0.45, 0.6), bodyMat);
+        fbGroup.add(fbMesh);
+        const splitter = new THREE.Mesh(new THREE.BoxGeometry(2.15, 0.06, 0.7), carbonMat);
+        splitter.position.set(0, -0.22, 0.05);
+        fbGroup.add(splitter);
+        addDissectedPart(fbGroup, [0, 0.45, -2.35], [0, 0.45, -3.8]);
+
+        // 6. Rear Bumper & Diffuser
+        const rbGroup = new THREE.Group();
+        const rbMesh = new THREE.Mesh(new THREE.BoxGeometry(2.05, 0.50, 0.6), bodyMat);
+        rbGroup.add(rbMesh);
+        const diffuser = new THREE.Mesh(new THREE.BoxGeometry(2.10, 0.15, 0.65), carbonMat);
+        diffuser.position.set(0, -0.22, 0.05);
+        rbGroup.add(diffuser);
+        addDissectedPart(rbGroup, [0, 0.48, 2.35], [0, 0.48, 3.8]);
+
+        // 7. Active Aero Rear Spoiler
+        const spoilerGroup = new THREE.Group();
+        const wingMesh = new THREE.Mesh(new THREE.BoxGeometry(1.95, 0.06, 0.40), carbonMat);
+        spoilerGroup.add(wingMesh);
+        [-0.6, 0.6].forEach(sx => {
+            const stanchion = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.35, 0.15), carbonMat);
+            stanchion.position.set(sx, -0.18, 0);
+            spoilerGroup.add(stanchion);
+        });
+        addDissectedPart(spoilerGroup, [0, 1.05, 2.15], [0, 2.6, 2.8]);
+        this.spoilerPart = spoilerGroup;
+        this.spoilerHomePos = new THREE.Vector3(0, 1.05, 2.15);
+
+        // 8. Twin-Turbo V8 Engine Block
+        const engGroup = new THREE.Group();
+        const block = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.55, 1.1), engineMat);
+        engGroup.add(block);
+        const valveCoverL = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.15, 0.95), engineCoverMat);
+        valveCoverL.position.set(-0.35, 0.32, 0);
+        engGroup.add(valveCoverL);
+        const valveCoverR = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.15, 0.95), engineCoverMat);
+        valveCoverR.position.set(0.35, 0.32, 0);
+        engGroup.add(valveCoverR);
+        addDissectedPart(engGroup, [0, 0.65, 0.8], [0, 2.5, 0.8]);
+
+        // 9. Dashboard, Interior & Steering Wheel
+        const intGroup = new THREE.Group();
+        const dash = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.45, 0.7), carbonMat);
+        intGroup.add(dash);
+        const swGroup = new THREE.Group();
+        const swRim = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.03, 8, 24), carbonMat);
+        swGroup.add(swRim);
+        swGroup.position.set(-0.42, 0.25, -0.35);
+        intGroup.add(swGroup);
+        this.steeringWheelMesh = swGroup;
+        addDissectedPart(intGroup, [0, 0.95, -0.2], [0, 1.9, -0.2]);
+
+        // 10. Carbon Roof Canopy
+        const roofGroup = new THREE.Group();
+        const roof = new THREE.Mesh(new THREE.BoxGeometry(1.75, 0.08, 1.6), carbonMat);
+        roofGroup.add(roof);
+        const windshield = new THREE.Mesh(new THREE.BoxGeometry(1.65, 0.05, 1.1), glassMat);
+        windshield.position.set(0, -0.15, -1.0);
+        windshield.rotation.x = 0.35;
+        roofGroup.add(windshield);
+        addDissectedPart(roofGroup, [0, 1.25, 0.1], [0, 3.3, 0.1]);
+
+        // 11. Front Fenders (Left & Right)
+        const fendFL = new THREE.Mesh(new THREE.BoxGeometry(0.40, 0.55, 1.5), bodyMat);
+        addDissectedPart(fendFL, [-0.95, 0.70, -1.4], [-2.0, 1.1, -1.8]);
+        const fendFR = new THREE.Mesh(new THREE.BoxGeometry(0.40, 0.55, 1.5), bodyMat);
+        addDissectedPart(fendFR, [0.95, 0.70, -1.4], [2.0, 1.1, -1.8]);
+
+        // 12. Rear Quarter Panels (Left & Right)
+        const fendRL = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.60, 1.5), bodyMat);
+        addDissectedPart(fendRL, [-0.98, 0.72, 1.4], [-2.0, 1.1, 1.8]);
+        const fendRR = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.60, 1.5), bodyMat);
+        addDissectedPart(fendRR, [0.98, 0.72, 1.4], [2.0, 1.1, 1.8]);
+
+        // 13. Four Fully Dissected Wheel Assemblies (Tire, Rim, Rotor, Caliper)
+        // 13. Four Fully Dissected Wheel Assemblies (Kingpin Pivot -> Spin Axle -> Wheel Geometry)
+        const wheelGeo = new THREE.CylinderGeometry(0.38, 0.38, 0.25, 24);
+        const rimGeo = new THREE.CylinderGeometry(0.26, 0.26, 0.26, 12);
+        const rotorGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.04, 16);
+        const caliperGeo = new THREE.BoxGeometry(0.12, 0.18, 0.22);
 
         const wheelCfg = [
-            { x: -1.1, z: -1.5, front: true },
-            { x: 1.1, z: -1.5, front: true },
-            { x: -1.1, z: 1.4, front: false },
-            { x: 1.1, z: 1.4, front: false },
+            { x: -1.05, z: -1.5, front: true, side: -1 },
+            { x: 1.05, z: -1.5, front: true, side: 1 },
+            { x: -1.05, z: 1.4, front: false, side: -1 },
+            { x: 1.05, z: 1.4, front: false, side: 1 },
         ];
-        wheelCfg.forEach(({ x, z, front }) => {
-            const wg = new THREE.Group();
-            const tire = new THREE.Mesh(wheelGeo, wheelMat);
+
+        this.wheelSpinGroups = [];
+        this.frontSteerPivots = [];
+
+        wheelCfg.forEach(({ x, z, front, side }) => {
+            // Kingpin Steering Pivot Group (handles steering angle Y rotation)
+            const steerPivot = new THREE.Group();
+
+            // Stationary Brake Caliper (Attached to steerPivot)
+            const caliper = new THREE.Mesh(caliperGeo, caliperMat);
+            caliper.position.set(0, 0.15, -0.05);
+            steerPivot.add(caliper);
+
+            // Wheel Spin Group (Child of steerPivot - handles forward axle rolling X rotation)
+            const spinGroup = new THREE.Group();
+
+            const tire = new THREE.Mesh(wheelGeo, tireMat);
             tire.rotation.z = Math.PI / 2;
-            wg.add(tire);
+            spinGroup.add(tire);
+
             const rim = new THREE.Mesh(rimGeo, rimMat);
             rim.rotation.z = Math.PI / 2;
-            wg.add(rim);
-            wg.position.set(x, 0.38, z);
-            group.add(wg);
-            this.wheels.push(wg);
-            if (front) this.frontWheels.push(wg);
+            spinGroup.add(rim);
+
+            const rotor = new THREE.Mesh(rotorGeo, rotorMat);
+            rotor.rotation.z = Math.PI / 2;
+            rotor.position.x = -side * 0.04;
+            spinGroup.add(rotor);
+
+            steerPivot.add(spinGroup);
+
+            const homePos = [x, 0.38, z];
+            const explodedPos = [x + side * 1.6, 0.38, z];
+
+            addDissectedPart(steerPivot, homePos, explodedPos);
+
+            this.wheelSpinGroups.push(spinGroup);
+            if (front) this.frontSteerPivots.push(steerPivot);
         });
 
-        this.proceduralBodyGroup = group;
-        return group;
+        this.proceduralBodyGroup = rootGroup;
+        return rootGroup;
     }
 
     _loadFerrariModel() {
@@ -354,8 +502,33 @@ export class Vehicle {
                 const wheelRL = carModel.getObjectByName('wheel_rl');
                 const wheelRR = carModel.getObjectByName('wheel_rr');
                 if (wheelFL && wheelFR && wheelRL && wheelRR) {
-                    this.gltfWheels = [wheelFL, wheelFR, wheelRL, wheelRR];
-                    this.gltfFrontWheels = [wheelFL, wheelFR];
+                    this.gltfSpinWheels = [];
+                    this.gltfSteerPivots = [];
+
+                    const rawWheels = [
+                        { mesh: wheelFL, isFront: true },
+                        { mesh: wheelFR, isFront: true },
+                        { mesh: wheelRL, isFront: false },
+                        { mesh: wheelRR, isFront: false },
+                    ];
+
+                    rawWheels.forEach(({ mesh, isFront }) => {
+                        const parent = mesh.parent;
+                        const steerPivot = new THREE.Group();
+                        steerPivot.position.copy(mesh.position);
+                        parent.add(steerPivot);
+
+                        const spinGroup = new THREE.Group();
+                        steerPivot.add(spinGroup);
+
+                        mesh.position.set(0, 0, 0);
+                        spinGroup.add(mesh);
+
+                        this.gltfSpinWheels.push(spinGroup);
+                        if (isFront) {
+                            this.gltfSteerPivots.push(steerPivot);
+                        }
+                    });
                 }
 
                 // Apply glossy Ferrari Red body paint with balanced moonlight sheen
@@ -385,17 +558,62 @@ export class Vehicle {
         }
     }
 
+    _updateDissection(dt, input) {
+        if (input.dissect) {
+            this.dissectionTarget = 1.0;
+        } else {
+            this.dissectionTarget = 0.0;
+        }
+
+        const lerpSpeed = Math.min(1.0, 7.0 * dt);
+        this.dissectionFactor += (this.dissectionTarget - this.dissectionFactor) * lerpSpeed;
+
+        // Smoothly interpolate all dissected car components between home and exploded positions
+        this.dissectedParts.forEach(p => {
+            if (p.mesh) {
+                p.mesh.position.lerpVectors(p.homePos, p.explodedPos, this.dissectionFactor);
+                if (p.homeRot && p.explodedRot) {
+                    p.mesh.rotation.x = THREE.MathUtils.lerp(p.homeRot.x, p.explodedRot.x, this.dissectionFactor);
+                    p.mesh.rotation.y = THREE.MathUtils.lerp(p.homeRot.y, p.explodedRot.y, this.dissectionFactor);
+                    p.mesh.rotation.z = THREE.MathUtils.lerp(p.homeRot.z, p.explodedRot.z, this.dissectionFactor);
+                }
+            }
+        });
+
+        // Rotate cockpit steering wheel with turning input
+        if (this.steeringWheelMesh) {
+            this.steeringWheelMesh.rotation.z = -this.turningSystem.currentSteer * 2.5;
+        }
+
+        // Active aero spoiler downforce animation when assembled
+        if (this.spoilerPart && this.dissectionFactor < 0.1) {
+            const isHighSpeed = Math.abs(this.vLong) > 18.0;
+            const isBraking = (input.backward && this.vLong > 0.5) || input.handbrake;
+            const lift = isBraking ? 0.20 : (isHighSpeed ? 0.10 : 0.0);
+            const tilt = isBraking ? -0.22 : (isHighSpeed ? -0.08 : 0.0);
+
+            this.spoilerPart.position.y = this.spoilerHomePos.y + lift;
+            this.spoilerPart.rotation.x = tilt;
+        }
+    }
+
     /* ------------------------------------------------
        MAIN UNIFIED UPDATE LOOP
        ------------------------------------------------ */
     update(dt, input, weather) {
         dt = Math.min(dt, 1 / 30);
 
+        // Compute weather grip factor from weather type
+        const weatherType = weather ? weather.weatherType : 3;
+        const weatherGripFactor = weatherType === 0 ? 0.65 : (weatherType === 1 ? 0.82 : 1.0);
+
         // 1. Update Modular Subsystems
-        this.acceleratingSystem.update(dt, input, weather);
-        this.turningSystem.update(dt, input);
-        this.driftingSystem.update(dt, input, weather);
+        this.acceleratingSystem.update(dt, input, weatherGripFactor);
+        this.turningSystem.update(dt, input, weatherGripFactor, weatherType);
+        this.driftingSystem.update(dt, input, weatherGripFactor);
         this.maneuversSystem.update(dt, input, weather);
+
+        this._updateDissection(dt, input);
 
         // 2. Integrated 3D World Movement
         const sinH = Math.sin(this.heading);
@@ -406,17 +624,21 @@ export class Vehicle {
         this.mesh.position.x += vxWorld * dt;
         this.mesh.position.z += vzWorld * dt;
 
-        // 3. Chassis Suspension Physics (Pitch, Roll, Heave)
-        const targetPitch = -(this.acceleratingSystem.aLong / 9.81) * 0.045;
-        const targetRoll = (this.turningSystem.aLat / 9.81) * 0.075;
+        // 3. Chassis Suspension Physics (Pitch, Roll, Heave) with Lag
+        // Stronger pitch/roll multipliers + brake dive & acceleration squat bonuses
+        const brakeDiveBonus = (input.backward && this.vLong > 0.5) ? 0.02 : 0;
+        const squatBonus = (this.acceleratingSystem.aLong > 5) ? 0.015 : 0;
+        const targetPitch = -(this.acceleratingSystem.aLong / 9.81) * 0.065 + brakeDiveBonus - squatBonus;
+        const targetRoll = (this.turningSystem.aLat / 9.81) * 0.090;
         const roadBumpNoise = Math.sin(performance.now() * 0.018) * 0.006 * Math.min(Math.abs(this.vLong) / 25, 1.0);
         const targetHeave = -(Math.abs(this.acceleratingSystem.aLong) / 9.81) * 0.012 + roadBumpNoise;
 
-        this.pitchVel += (targetPitch - this.pitchAngle) * 180.0 * dt - this.pitchVel * 12.0 * dt;
+        // Suspension lag: slower spring-damper response (~200-350ms instead of instant)
+        this.pitchVel += (targetPitch - this.pitchAngle) * 8.0 * dt - this.pitchVel * 5.6 * dt;
         this.pitchAngle += this.pitchVel * dt;
-        this.rollVel += (targetRoll - this.rollAngle) * 180.0 * dt - this.rollVel * 12.0 * dt;
+        this.rollVel += (targetRoll - this.rollAngle) * 8.0 * dt - this.rollVel * 5.6 * dt;
         this.rollAngle += this.rollVel * dt;
-        this.heaveVel += (targetHeave - this.heaveDisplacement) * 200.0 * dt - this.heaveVel * 14.0 * dt;
+        this.heaveVel += (targetHeave - this.heaveDisplacement) * 10.0 * dt - this.heaveVel * 6.3 * dt;
         this.heaveDisplacement += this.heaveVel * dt;
 
         this.mesh.rotation.y = this.heading;
@@ -424,22 +646,22 @@ export class Vehicle {
         this.mesh.rotation.x = this.pitchAngle;
         this.mesh.position.y = Math.max(-0.05, this.heaveDisplacement);
 
-        // 4. Wheel Animations & Steering Angle
+        // 4. Wheel Animations & Steering Angle (Separated Transformations)
         const spin = -this.vLong * dt * 3.2;
-        if (this.isGltfLoaded && this.gltfWheels) {
-            this.gltfWheels.forEach(w => { w.rotation.x += spin; });
-        } else {
-            this.wheels.forEach(w => {
-                if (w.children[0]) w.children[0].rotation.x += spin;
-                if (w.children[1]) w.children[1].rotation.x += spin;
-            });
+
+        // Continuous wheel spin around axle (Pitch rotation.x on spinGroup)
+        if (this.isGltfLoaded && this.gltfSpinWheels && this.gltfSpinWheels.length > 0) {
+            this.gltfSpinWheels.forEach(w => { w.rotation.x += spin; });
+        } else if (this.wheelSpinGroups) {
+            this.wheelSpinGroups.forEach(w => { w.rotation.x += spin; });
         }
 
+        // Smooth visual steering rotation around Kingpin pivot (Yaw rotation.y on steerPivot)
         const visualSteer = this.turningSystem.currentSteer * 0.85;
-        if (this.isGltfLoaded && this.gltfFrontWheels) {
-            this.gltfFrontWheels.forEach(w => (w.rotation.y = visualSteer));
-        } else {
-            this.frontWheels.forEach(w => (w.rotation.y = visualSteer));
+        if (this.isGltfLoaded && this.gltfSteerPivots && this.gltfSteerPivots.length > 0) {
+            this.gltfSteerPivots.forEach(p => { p.rotation.y = visualSteer; });
+        } else if (this.frontSteerPivots) {
+            this.frontSteerPivots.forEach(p => { p.rotation.y = visualSteer; });
         }
 
         // 5. Particle Effects & Lighting Updates
@@ -449,37 +671,98 @@ export class Vehicle {
 
         this._updateLights(dt, input);
 
-        // 6. Playable boundary constraint relative to curved road center
+        // 6. Playable boundary constraint relative to dynamic road width
         const roadPt = getRoadPoint(this.mesh.position.z);
+        const currentRoadWidth = getRoadWidth(this.mesh.position.z);
+        const maxOffset = (currentRoadWidth / 2) - 0.4;
+
         const offsetFromRoad = this.mesh.position.x - roadPt.x;
-        if (Math.abs(offsetFromRoad) > 60) {
-            this.mesh.position.x = roadPt.x + Math.sign(offsetFromRoad) * 60;
-            this.vLong *= 0.98;
+
+        if (Math.abs(offsetFromRoad) > maxOffset) {
+            const sideSign = Math.sign(offsetFromRoad);
+            this.mesh.position.x = roadPt.x + sideSign * maxOffset;
+
+            // Guardrail collision friction & rebound velocity dampen
+            this.vLong *= 0.95;
+            this.vLat = -sideSign * 1.5; // Rebound pushback away from barrier
+
+            // Emit barrier scrape smoke/sparks
+            this._emitSmoke(this.mesh.position.x, this.mesh.position.z, 0.85);
         }
     }
 
     _updateLights(dt, input) {
         const mode = input.headlightMode !== undefined ? input.headlightMode : 1;
-        const spotIntensity = mode === 2 ? 18.0 : (mode === 1 ? 8.0 : 0);
-        const spotDistance = mode === 2 ? 120 : 60;
+        const spotIntensity = mode === 2 ? 350.0 : (mode === 1 ? 160.0 : 0);
+        const spotDistance = mode === 2 ? 300 : 180;
+        const fillIntensity = mode === 2 ? 18.0 : (mode === 1 ? 8.0 : 0);
 
-        this.headlightSpots.forEach(s => {
-            s.intensity = spotIntensity;
-            s.distance = spotDistance;
+        const sinH = Math.sin(this.heading);
+        const cosH = Math.cos(this.heading);
+
+        const carX = this.mesh.position.x;
+        const carY = this.mesh.position.y;
+        const carZ = this.mesh.position.z;
+
+        const offsets = [-0.70, 0.70];
+
+        // Update Left and Right Headlight Spotlights & Targets in World Coordinates
+        offsets.forEach((sideOffset, idx) => {
+            const spot = this.headlightSpots[idx];
+            const target = this.headlightTargets[idx];
+
+            if (spot && target) {
+                spot.intensity = spotIntensity;
+                spot.distance = spotDistance;
+
+                // Spot position at vehicle headlights socket (0.70m height above ground)
+                const sx = carX + cosH * sideOffset + sinH * (-1.8);
+                const sy = carY + 0.70;
+                const sz = carZ - sinH * sideOffset + cosH * (-1.8);
+                spot.position.set(sx, sy, sz);
+
+                // Spot target 70m straight down the road (0.40m height skimming above road)
+                const tx = carX + cosH * sideOffset + sinH * (-70.0);
+                const ty = carY + 0.40;
+                const tz = carZ - sinH * sideOffset + cosH * (-70.0);
+                target.position.set(tx, ty, tz);
+                target.updateMatrixWorld();
+            }
+
+            // Fill PointLights in local space (0.65m height)
+            if (this.headlightFillPoints && this.headlightFillPoints[idx]) {
+                this.headlightFillPoints[idx].position.set(sideOffset, 0.65, -2.0);
+                this.headlightFillPoints[idx].intensity = fillIntensity;
+            }
         });
 
         if (this.gltfHeadlightMat) {
-            this.gltfHeadlightMat.emissiveIntensity = mode === 2 ? 2.5 : (mode === 1 ? 1.2 : 0.05);
+            this.gltfHeadlightMat.emissiveIntensity = mode === 2 ? 4.0 : (mode === 1 ? 2.0 : 0.05);
         }
 
+        // Brake Light Spot Update (rear is +2.3m in local Z, 0.50m height)
         const isBraking = (input.backward && this.vLong > 0.5) || input.handbrake;
-        this.rearBrakeSpot.intensity = isBraking ? 6.0 : (mode > 0 ? 0.8 : 0);
+        this.rearBrakeSpot.intensity = isBraking ? 15.0 : (mode > 0 ? 1.5 : 0);
+
+        const rx = carX + sinH * 2.3;
+        const ry = carY + 0.50;
+        const rz = carZ + cosH * 2.3;
+        this.rearBrakeSpot.position.set(rx, ry, rz);
+
+        if (this.rearBrakeTarget) {
+            const rtx = carX + sinH * 15.0;
+            const rty = carY + 0.35;
+            const rtz = carZ + cosH * 15.0;
+            this.rearBrakeTarget.position.set(rtx, rty, rtz);
+            this.rearBrakeTarget.updateMatrixWorld();
+        }
+
         if (this.gltfTaillightMat) {
-            this.gltfTaillightMat.emissiveIntensity = isBraking ? 3.5 : (mode > 0 ? 0.8 : 0.2);
+            this.gltfTaillightMat.emissiveIntensity = isBraking ? 5.0 : (mode > 0 ? 1.0 : 0.2);
         }
 
         const isReversing = (this.vLong < -0.1) || (input.backward && Math.abs(this.vLong) < 0.5);
-        this.reverseLightPoint.intensity = isReversing ? 2.5 : 0;
+        this.reverseLightPoint.intensity = isReversing ? 5.0 : 0;
 
         this.blinkerTimer += dt;
         if (this.blinkerTimer >= 0.35) {

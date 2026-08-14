@@ -15,43 +15,92 @@ export class DriftingSystem {
         this.driftMultiplier = 1;
         this.alphaF = 0;
         this.alphaR = 0;
+        this.handbrakeTimer = 0;
+        this.releaseTimer = 0;
     }
 
-    update(dt, input, weather) {
+    update(dt, input, weatherGripFactor = 1.0) {
         const isHandbrake = input.handbrake && Math.abs(this.v.vLong) > 2;
         const vLongAbs = Math.max(0.2, Math.abs(this.v.vLong));
+        const kmh = Math.abs(this.v.vLong * 3.6);
 
         // 1. Calculate Front and Rear Tire Slip Angles
         this.alphaF = Math.atan2(this.vLat + this.v.yawRate * this.v.cgToFront, vLongAbs) - this.v.steerAngle * Math.sign(this.v.vLong || 1);
         this.alphaR = Math.atan2(this.vLat - this.v.yawRate * this.v.cgToRear, vLongAbs);
 
-        // 2. Calculate Sideways Slip Velocity (vLat)
-        const dvLat = -this.v.vLong * this.v.yawRate;
-
+        // 2. Handbrake Timer for Gradual Drift Initiation & Exit
         if (isHandbrake) {
-            // Handbrake breaks rear traction -> initiates sideways slide
-            this.vLat += dvLat * dt * 1.8;
+            this.handbrakeTimer = Math.min(0.2, this.handbrakeTimer + dt);
+            this.releaseTimer = 0;
+        } else {
+            if (this.handbrakeTimer > 0) {
+                this.releaseTimer = 0.5;
+            }
+            this.handbrakeTimer = Math.max(0, this.handbrakeTimer - dt);
+            this.releaseTimer = Math.max(0, this.releaseTimer - dt);
+        }
+
+        // 3. Pacejka-Style Simplified Lateral Tire Force
+        // Fy = D * sin(C * atan(B * alpha - E * (B * alpha)))
+        const pacejka = (alpha, B, C, D, E) => {
+            return D * Math.sin(C * Math.atan(B * alpha - E * (B * alpha)));
+        };
+        const FyRear = pacejka(this.alphaR, 8.0, 1.4, 1.0, 0.2);
+
+        // 4. Rear Grip Factor: gradual handbrake break + gradual recovery + weather
+        // Wet weather lowers grip break threshold for easier drift initiation
+        const handbrakeGripBreak = 0.15 * weatherGripFactor;
+        let rearGripFactor;
+        if (isHandbrake) {
+            rearGripFactor = THREE.MathUtils.lerp(1.0, handbrakeGripBreak, this.handbrakeTimer / 0.2);
+        } else if (this.releaseTimer > 0) {
+            rearGripFactor = THREE.MathUtils.lerp(handbrakeGripBreak, 1.0, 1.0 - this.releaseTimer / 0.5);
+        } else {
+            rearGripFactor = 1.0;
+        }
+
+        // 5. Calculate Sideways Slip Velocity (vLat)
+        const dvLat = -this.v.vLong * this.v.yawRate;
+        const canDrift = kmh >= 15.0;
+
+        if (isHandbrake && canDrift) {
+            // Handbrake drift: gradual initiation based on rear grip loss
+            this.vLat += dvLat * dt * 2.0 * (1.0 - rearGripFactor);
             this.isDrifting = true;
-        } else if (Math.abs(this.alphaR) > 0.12 && vLongAbs > 4.0) {
-            // High rear slip angle at speed -> sustained drift
-            this.vLat = THREE.MathUtils.lerp(this.vLat, dvLat * 0.2, dt * 8.0);
+        } else if (Math.abs(this.alphaR) > 0.12 && vLongAbs > 4.0 && canDrift) {
+            // Sustained drift via high rear slip angle with pacejka grip
+            const slipGrip = Math.abs(FyRear) * rearGripFactor;
+            this.vLat = THREE.MathUtils.lerp(this.vLat, dvLat * 0.2, dt * 8.0 * (1.0 - slipGrip * 0.5));
             this.isDrifting = true;
         } else {
-            // Normal driving -> rear tires anchor vehicle to heading
-            this.vLat = THREE.MathUtils.lerp(this.vLat, 0.0, dt * 14.0);
+            // Normal driving: rear tires anchor vehicle to heading
+            const gripStrength = 14.0 * Math.max(0.5, Math.abs(FyRear)) * rearGripFactor;
+            this.vLat = THREE.MathUtils.lerp(this.vLat, 0.0, dt * gripStrength);
             this.isDrifting = false;
+        }
+
+        // 6. Counter-Steer Support: steering opposite to drift reduces vLat faster
+        if (this.isDrifting && Math.abs(this.driftAngle) > 0.05) {
+            const steerAngle = this.v.steerAngle;
+            const driftSign = Math.sign(this.driftAngle);
+            const counterSteerEffect = Math.max(0, -steerAngle * driftSign) * 0.8;
+            if (counterSteerEffect > 0) {
+                this.vLat = THREE.MathUtils.lerp(this.vLat, 0.0, dt * counterSteerEffect * 10.0);
+            }
         }
 
         this.v.vLat = this.vLat;
 
-        // 3. Drift Angle Calculation
+        // 7. Drift Angle Calculation (capped at 45°)
         if (Math.abs(this.v.vLong) > 1.0) {
             this.driftAngle = Math.atan2(this.vLat, Math.abs(this.v.vLong));
+            const maxDriftAngle = Math.PI / 4; // 45°
+            this.driftAngle = THREE.MathUtils.clamp(this.driftAngle, -maxDriftAngle, maxDriftAngle);
         } else {
             this.driftAngle = 0;
         }
 
-        // 4. Drift Scoring System
+        // 8. Drift Scoring System
         if (this.isDrifting && Math.abs(this.driftAngle) > 0.06) {
             const angleDeg = Math.abs(this.driftAngle * (180 / Math.PI));
             const speedKmh = Math.abs(this.v.vLong * 3.6);

@@ -24,6 +24,9 @@ export class AcceleratingSystem {
         this.isNitro = false;
         this.isReversing = false;
 
+        // Progressive throttle state
+        this.currentThrottle = 0;
+
         // Dynamics telemetry output
         this.aLong = 0;
         this.driveForce = 0;
@@ -31,10 +34,11 @@ export class AcceleratingSystem {
 
     _getEngineTorque(rpm) {
         const normRpm = Math.max(0, Math.min(1.0, (rpm - 900) / (9000 - 900)));
-        if (normRpm <= 0.65) {
-            return 350 + 280 * Math.sin((normRpm / 0.65) * (Math.PI / 2));
+        // Peak torque at ~5500 RPM (normRpm ≈ 0.57), wider powerband with smoother falloff
+        if (normRpm <= 0.57) {
+            return 320 + 310 * Math.sin((normRpm / 0.57) * (Math.PI / 2));
         } else {
-            return 630 - 100 * Math.pow((normRpm - 0.65) / 0.35, 1.4);
+            return 630 - 120 * Math.pow((normRpm - 0.57) / 0.43, 1.6);
         }
     }
 
@@ -48,7 +52,7 @@ export class AcceleratingSystem {
         return 5;
     }
 
-    update(dt, input, weather) {
+    update(dt, input, weatherGripFactor = 1.0) {
         let sensMult = input.precision25 ? 0.25 : (input.precision ? 0.5 : 1.0);
 
         // 1. Gear Shifts
@@ -70,7 +74,12 @@ export class AcceleratingSystem {
         this.isNitro = input.nitro && Math.abs(this.v.vLong) > 2;
         const nitroMult = this.isNitro ? this.nitroBoost : 1.0;
 
-        // 4. Raw Engine Power & Drive Force
+        // 4. Progressive Throttle Application (simulates turbo lag at high RPM)
+        const throttleTarget = input.forward ? 1.0 : 0.0;
+        const throttleRate = 1.0 - Math.exp(-dt * 6.0);
+        this.currentThrottle = THREE.MathUtils.lerp(this.currentThrottle, throttleTarget, throttleRate);
+
+        // 5. Raw Engine Power & Drive Force
         let rawTorque = this._getEngineTorque(this.engineRpm) * nitroMult;
         if (this.shiftTimer > 0) rawTorque *= 0.25;
 
@@ -78,18 +87,23 @@ export class AcceleratingSystem {
         this.driveForce = 0;
         this.isReversing = false;
 
+        // Speed ratio for progressive brake feel
+        const speedRatio = Math.min(Math.abs(this.v.vLong) / 30.0, 1.0);
+
         if (input.forward) {
             if (this.v.vLong < -0.5) {
                 // Braking while rolling in reverse
-                this.driveForce = this.brakeForce * 800 * sensMult;
+                this.driveForce = this.brakeForce * 800 * sensMult * weatherGripFactor;
             } else {
-                // Forward acceleration drive power
-                this.driveForce = (rawTorque * totalRatio / effectiveRadius) * sensMult * 0.9;
+                // Launch control: limit initial acceleration from standstill to prevent wheelspin jump
+                const launchFactor = Math.min(1.0, Math.abs(this.v.vLong) / 5.0 + 0.3);
+                // Forward acceleration with progressive throttle application
+                this.driveForce = (rawTorque * totalRatio / effectiveRadius) * sensMult * 0.9 * this.currentThrottle * launchFactor;
             }
         } else if (input.backward) {
             if (this.v.vLong > 0.5) {
-                // Braking while moving forward
-                this.driveForce = -this.brakeForce * 900 * sensMult;
+                // Progressive brake feel: less grabby at low speed, stronger at high speed
+                this.driveForce = -this.brakeForce * 900 * sensMult * (0.4 + 0.6 * speedRatio) * weatherGripFactor;
             } else {
                 // Reverse acceleration drive power
                 this.isReversing = true;
@@ -97,21 +111,28 @@ export class AcceleratingSystem {
             }
         }
 
-        // 5. Aerodynamic Drag & Rolling Friction
+        // 6. Engine Braking — progressive realistic off-throttle coasting deceleration
+        let engineBrakeForce = 0;
+        if (!input.forward && !input.backward && Math.abs(this.v.vLong) > 0.5) {
+            // Smooth natural off-throttle coasting (~0.8 to 1.5 m/s² deceleration)
+            engineBrakeForce = -1.2 * Math.sign(this.v.vLong) * (1.0 + Math.abs(this.v.vLong) * 0.015) * this.v.mass;
+        }
+
+        // 7. Aerodynamic Drag & Rolling Friction
         const airDrag = 0.5 * 1.225 * 0.31 * 2.05 * this.v.vLong * Math.abs(this.v.vLong);
         const rollingResist = 0.012 * this.v.mass * 9.81 * Math.sign(this.v.vLong);
-        const netLongForce = this.driveForce - airDrag - (Math.abs(this.v.vLong) > 0.1 ? rollingResist : 0);
+        const netLongForce = this.driveForce + engineBrakeForce - airDrag - (Math.abs(this.v.vLong) > 0.1 ? rollingResist : 0);
 
-        // 6. Longitudinal Acceleration Integration
+        // 8. Longitudinal Acceleration Integration
         this.aLong = netLongForce / this.v.mass;
         this.v.vLong += this.aLong * dt;
 
-        // 7. Handbrake friction drag
+        // 9. Handbrake friction drag
         if (input.handbrake && Math.abs(this.v.vLong) > 2) {
             this.v.vLong *= (1.0 - 0.45 * dt);
         }
 
-        // 8. Low speed standstill snap
+        // 10. Low speed standstill snap
         if (Math.abs(this.v.vLong) < 0.15 && !input.forward && !input.backward) {
             this.v.vLong = 0;
         }

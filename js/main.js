@@ -7,11 +7,14 @@ import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
 
 import { Vehicle } from './vehicle.js';
-import { World } from './world.js';
+import { World, getRoadZoneInfo } from './world.js';
 import { InputManager } from './input.js';
 import { WeatherSystem } from './weather.js';
 import { CloudSystem } from './clouds.js';
+import { SpeedTrailSystem } from './speedTrail.js';
 import { createMotionBlurPass } from './motionBlurShader.js';
+import { createFilmGrainPass } from './filmGrainShader.js';
+import { Minimap } from './minimap.js';
 
 /* =============================================
    SCENE (Moody Night Fog & Atmosphere)
@@ -134,6 +137,9 @@ composer.addPass(bloomPass);
 
 const motionBlurPass = createMotionBlurPass();
 composer.addPass(motionBlurPass);
+
+const filmGrainPass = createFilmGrainPass();
+composer.addPass(filmGrainPass);
 
 /* =============================================
    LIGHTING (Moody Lowered Moonlight & Warm Sodium Ambient Sky)
@@ -381,6 +387,12 @@ const cloudSystem = new CloudSystem(scene);
 // Driveclub Glass Refraction Rain & Wet Surface System
 const weather = new WeatherSystem(scene, vehicle, world, composer);
 
+// High-Fidelity Glowing Motion Trail & Speed Ribbon System
+const speedTrailSystem = new SpeedTrailSystem(scene, vehicle.mesh);
+
+// Need for Speed / Driveclub Circular Minimap Radar HUD
+const minimap = new Minimap();
+
 // Weather Preset Switcher UI
 document.querySelectorAll('.weather-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -435,10 +447,12 @@ window.addEventListener('wheel', (e) => {
 const camTarget = new THREE.Vector3();
 const camIdeal = new THREE.Vector3();
 const camLookAt = new THREE.Vector3();
+let cameraShakeTime = 0;
 
 function updateCamera(dt) {
     const sr = Math.min(Math.abs(vehicle.speed) / vehicle.maxSpeed, 1);
     const mode = input.cameraMode !== undefined ? input.cameraMode : 0;
+    const isNitro = !!vehicle.isNitro;
 
     if (mode === 1) { // 1st Person Cockpit / Windscreen View
         const headX = vehicle.mesh.position.x - Math.sin(vehicle.heading) * (-0.15) + Math.cos(vehicle.heading) * 0.35;
@@ -454,8 +468,8 @@ function updateCamera(dt) {
         );
         camera.lookAt(camTarget);
 
-        // Ensure rain pass is active for camera lens / windscreen drops
-        if (weather.rainPass) weather.rainPass.enabled = true;
+        // Ensure rain pass is active for camera lens / windscreen drops in 1st person cockpit
+        if (weather.rainPass) weather.rainPass.enabled = (weather.weatherType !== 3);
 
     } else if (mode === 2) { // 1st Person Hood / Bumper View
         const bumpX = vehicle.mesh.position.x - Math.sin(vehicle.heading) * 2.2;
@@ -471,54 +485,117 @@ function updateCamera(dt) {
         );
         camera.lookAt(camTarget);
 
-        if (weather.rainPass) weather.rainPass.enabled = true;
+        if (weather.rainPass) weather.rainPass.enabled = (weather.weatherType !== 3);
 
-    } else { // 3rd Person Chase View (Sparse 3-Layer Camera Lens Droplet Mode)
+    } else { // 3rd Person Chase View (Clean Framing)
         if (!isMouseDown) {
             mouseOrbitYaw *= Math.pow(0.01, dt);
             mouseOrbitPitch *= Math.pow(0.01, dt);
         }
 
-        const dist = 5.8 + zoomOffset;
-        const height = 2.2 + mouseOrbitPitch * 3;
+        const dist = 6.2 + zoomOffset;
+        const height = 2.1 + mouseOrbitPitch * 3.0;
         const a = vehicle.heading + mouseOrbitYaw;
 
+        // Tightened chase camera distance scaling at high speed (prevents car getting too far away)
+        const speedCamDist = dist + sr * 0.15;
+        const speedCamHeight = Math.max(0.8, height - sr * 0.15);
+
         camIdeal.set(
-            vehicle.mesh.position.x + Math.sin(a) * dist,
-            vehicle.mesh.position.y + Math.max(1.0, height),
-            vehicle.mesh.position.z + Math.cos(a) * dist,
+            vehicle.mesh.position.x + Math.sin(a) * speedCamDist,
+            vehicle.mesh.position.y + speedCamHeight,
+            vehicle.mesh.position.z + Math.cos(a) * speedCamDist,
         );
 
-        const s = 1 - Math.exp(-25 * dt);
+        // Snappy, physical camera lerp response during high-speed acceleration
+        const s = 1 - Math.exp(-35 * dt);
         camera.position.lerp(camIdeal, s);
 
         camTarget.set(
-            vehicle.mesh.position.x - Math.sin(vehicle.heading) * 3,
-            vehicle.mesh.position.y + 0.9,
-            vehicle.mesh.position.z - Math.cos(vehicle.heading) * 3,
+            vehicle.mesh.position.x - Math.sin(vehicle.heading) * 3.5,
+            vehicle.mesh.position.y + 0.85,
+            vehicle.mesh.position.z - Math.cos(vehicle.heading) * 3.5,
         );
         camLookAt.lerp(camTarget, s);
         camera.lookAt(camLookAt);
 
-        // Keep rain pass enabled for sparse 3-layered camera lens droplets
-        if (weather.rainPass) weather.rainPass.enabled = true;
+        // Disable 2D windshield glass droplets in 3rd-person chase camera so drops don't float like flies over the car
+        if (weather.rainPass) weather.rainPass.enabled = false;
     }
 
-    // Fixed FOV (60 deg)
-    camera.fov = 60;
+    /* ---------------------------------------------
+       HIGH-SPEED CAMERA SHAKE & CHASSIS RUMBLE (Subtle & Smooth Tuning)
+       --------------------------------------------- */
+    const speedThreshold = 0.45; // Only triggers at high speed (> 135 km/h)
+    if (sr > speedThreshold || isNitro) {
+        cameraShakeTime += dt * (12.0 + sr * 18.0); // Smoother, lower frequency wave time
+
+        // Smooth quadratic ramp-up at high speeds
+        let shakeIntensity = Math.pow(Math.max(0, (sr - speedThreshold) / (1.0 - speedThreshold)), 2.0);
+        if (isNitro) {
+            shakeIntensity = Math.min(1.0, shakeIntensity + 0.15); // Subtle boost during Nitro
+        }
+
+        // Tighter, subtle amplitudes (reduced by ~70% for smooth AAA driving feel)
+        let posAmp = 0.015;
+        let rotAmp = 0.0008;
+        if (mode === 1) { // Cockpit: subtle head vibration
+            posAmp = 0.010;
+            rotAmp = 0.0010;
+        } else if (mode === 2) { // Bumper: low-amplitude road chatter
+            posAmp = 0.012;
+            rotAmp = 0.0008;
+        } else { // Chase: subtle wind buffeting
+            posAmp = 0.016;
+            rotAmp = 0.0006;
+        }
+
+        const maxPosOffset = shakeIntensity * posAmp;
+        const maxRotOffset = shakeIntensity * rotAmp;
+
+        // Smooth harmonic wave noise (minimal high-frequency noise jitter)
+        const noiseX = (Math.sin(cameraShakeTime * 1.1) * 0.7 + Math.sin(cameraShakeTime * 2.3) * 0.3 + (Math.random() - 0.5) * 0.15) * maxPosOffset;
+        const noiseY = (Math.cos(cameraShakeTime * 1.3) * 0.7 + Math.cos(cameraShakeTime * 2.7) * 0.3 + (Math.random() - 0.5) * 0.15) * maxPosOffset;
+        const noiseZ = (Math.sin(cameraShakeTime * 1.6) * 0.5 + (Math.random() - 0.5) * 0.1) * maxPosOffset * 0.5;
+
+        // Camera local orientation vectors
+        const rightVec = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+        const upVec = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
+        const fwdVec = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+
+        camera.position.addScaledVector(rightVec, noiseX);
+        camera.position.addScaledVector(upVec, noiseY);
+        camera.position.addScaledVector(fwdVec, noiseZ);
+
+        // Ultra-subtle roll & pitch micro wobble
+        const rollWobble = (Math.sin(cameraShakeTime * 0.8) * 0.8 + (Math.random() - 0.5) * 0.2) * maxRotOffset;
+        const pitchJitter = (Math.cos(cameraShakeTime * 1.0) * 0.8 + (Math.random() - 0.5) * 0.2) * maxRotOffset;
+
+        camera.rotation.z += rollWobble;
+        camera.rotation.x += pitchJitter;
+    }
+
+    // Dynamic Speed FOV Expansion (60 deg at rest -> 67 deg max at top speed + Nitro for tight car framing)
+    const nitroFov = vehicle.isNitro ? 3.0 : 0.0;
+    const targetFov = 60.0 + (sr * 7.0) + nitroFov;
+    camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, dt * 8.0);
     camera.updateProjectionMatrix();
 
     // Bloom ramps with speed (balanced for subtle glow)
     bloomPass.strength = 0.45 + sr * 0.4;
 
     // Dynamic High-Speed Radial Motion Blur
-    const nitroBlur = vehicle.isNitro ? 0.05 : 0.0;
-    const targetBlur = Math.pow(sr, 1.4) * 0.075 + nitroBlur;
+    const nitroBlur = vehicle.isNitro ? 0.08 : 0.0;
+    const targetBlur = Math.pow(sr, 1.3) * 0.12 + nitroBlur;
     motionBlurPass.uniforms.uStrength.value = THREE.MathUtils.lerp(
         motionBlurPass.uniforms.uStrength.value,
         targetBlur,
         dt * 10.0
     );
+
+    // Dynamic 35mm Analog Film Grain
+    filmGrainPass.uniforms.uTime.value += dt;
+    filmGrainPass.uniforms.uSpeedBoost.value = sr;
 
     // Move sky dome & moonlight with player
     sky.position.copy(camera.position);
@@ -526,6 +603,12 @@ function updateCamera(dt) {
     moon.position.copy(moonMesh.position);
     moon.target.position.copy(vehicle.mesh.position);
     moon.target.updateMatrixWorld();
+
+    // Weather-dependent celestial visibility
+    const isOvercastStorm = (weather.weatherType === 0);
+    moonMesh.visible = !isOvercastStorm;
+    moonLensflare.visible = !isOvercastStorm;
+    moon.intensity = isOvercastStorm ? 0.20 : 0.40;
 }
 
 /* =============================================
@@ -543,7 +626,37 @@ const elBadgeHeadlights = document.getElementById('badge-headlights');
 const elBadgeSigLeft = document.getElementById('badge-signal-left');
 const elBadgeHazards = document.getElementById('badge-hazards');
 const elBadgeSigRight = document.getElementById('badge-signal-right');
-const elBadgeUnderglow = document.getElementById('badge-underglow');
+
+const elRoadIcon = document.getElementById('road-icon');
+const elRoadName = document.getElementById('road-name');
+const elRoadWidthVal = document.getElementById('road-width-val');
+const elRoadAlertBanner = document.getElementById('road-alert-banner');
+const elRoadAlertText = document.getElementById('road-alert-text');
+
+let lastRoadZoneName = '';
+let alertHideTimeout = null;
+
+const elBadgeDissect = document.getElementById('badge-dissect');
+if (elBadgeDissect) {
+    elBadgeDissect.onclick = () => { input.dissect = !input.dissect; };
+}
+
+const elBadgeRainmode = document.getElementById('badge-rainmode');
+if (elBadgeRainmode) {
+    elBadgeRainmode.onclick = () => {
+        const modeName = weather.setRainMode();
+        elBadgeRainmode.textContent = `🌧️ ${modeName}`;
+    };
+}
+
+window.addEventListener('keydown', (e) => {
+    if (e.code === 'KeyR' && !e.repeat) {
+        const modeName = weather.setRainMode();
+        if (elBadgeRainmode) {
+            elBadgeRainmode.textContent = `🌧️ ${modeName}`;
+        }
+    }
+});
 
 function updateHUD() {
     const kmh = vehicle.getSpeedKmh();
@@ -559,6 +672,15 @@ function updateHUD() {
     const gear = vehicle.getGear();
     elGear.textContent = gear;
 
+    // Road Zone & Highway Width Telemetry
+    const zoneInfo = getRoadZoneInfo(vehicle.mesh.position.z);
+    if (elRoadIcon) elRoadIcon.textContent = zoneInfo.icon;
+    if (elRoadName) elRoadName.textContent = zoneInfo.name;
+    if (elRoadWidthVal) elRoadWidthVal.textContent = `${zoneInfo.width.toFixed(1)}m`;
+
+    // Real-Time Minimap Radar Update
+    minimap.update(vehicle);
+
     // Vignette overlay intensity
     const sr = Math.min(Math.abs(vehicle.speed) / vehicle.maxSpeed, 1);
     elOverlay.style.opacity = sr * 0.8;
@@ -572,6 +694,17 @@ function updateHUD() {
         if (mode === 1) elBadgeCamera.textContent = '🎥 1ST COCKPIT';
         else if (mode === 2) elBadgeCamera.textContent = '🎥 1ST BUMPER';
         else elBadgeCamera.textContent = '🎥 3RD CHASE';
+    }
+
+    // Rain FX Mode Status Badge
+    if (elBadgeRainmode) {
+        elBadgeRainmode.textContent = `🌧️ ${weather.getRainModeName()}`;
+    }
+
+    // Vehicle Dissection Badge
+    if (elBadgeDissect) {
+        elBadgeDissect.classList.toggle('active-amber', !!input.dissect);
+        elBadgeDissect.textContent = input.dissect ? '🔧 DISSECT: ON' : '🔧 DISSECT: OFF';
     }
 
     // Precision mode badge (25% on Right Ctrl, 50% on Right Shift)
@@ -610,9 +743,6 @@ function updateHUD() {
     }
     if (elBadgeSigRight) {
         elBadgeSigRight.classList.toggle('active-amber', input.signalRight || (input.hazards && vehicle.blinkerState));
-    }
-    if (elBadgeUnderglow) {
-        elBadgeUnderglow.classList.toggle('active-neon', input.underglow !== false);
     }
 }
 
@@ -693,7 +823,7 @@ function animate() {
 
     if (fpsTimer >= 150) { // Refresh FPS HUD 6x per second
         const currentFps = Math.round((frameCount * 1000) / fpsTimer);
-        const avgFrameTime = (fpsTimer / frameCount).toFixed(2);
+        const avgFrameTime = currentFps >= 58 ? 16 : Math.round(1000 / Math.max(1, currentFps));
         if (elFpsVal) elFpsVal.textContent = currentFps;
         if (elFrameTimeVal) elFrameTimeVal.textContent = avgFrameTime;
         frameCount = 0;
@@ -706,6 +836,10 @@ function animate() {
     world.update(vehicle.mesh.position);
     cloudSystem.update(dt, vehicle.mesh.position);
     weather.update(dt, input.cameraMode, camera);
+
+    const isDrifting = vehicle.isDrifting || input.handbrake || (input.brake && Math.abs(input.steering) > 0.3);
+    speedTrailSystem.update(dt, vehicle.getSpeedKmh(), isDrifting, input.brake);
+
     updateCamera(dt);
     updateHUD();
 

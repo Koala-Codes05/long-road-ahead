@@ -46,26 +46,27 @@ const Drop = {
 };
 
 const defaultOptions = {
-    minR: 4,
-    maxR: 18,
-    maxDrops: 150,
-    rainChance: 0.12,
-    rainLimit: 2,
-    dropletsRate: 20,
-    dropletsSize: [1.5, 4],
-    dropletsCleaningRadiusMultiplier: 0.43,
+    minR: 2.0,
+    maxR: 18.0,
+    maxDrops: 380,
+    rainChance: 0.50,
+    rainLimit: 7,
+    dropletsRate: 42,
+    dropletsSize: [0.8, 3.6],
+    dropletsCleaningRadiusMultiplier: 0.65,
     raining: true,
     globalTimeScale: 1,
-    trailRate: 0.4,
+    trailRate: 0.65,
     autoShrink: true,
     spawnArea: [0.0, 1.0],
     windSpread: 0.8,
-    trailScaleRange: [0.15, 0.35],
-    collisionRadius: 0.65,
-    collisionRadiusIncrease: 0.01,
+    trailScaleRange: [0.22, 0.48],
+    collisionRadius: 0.72,
+    collisionRadiusIncrease: 0.02,
     dropFallMultiplier: 1,
-    collisionBoostMultiplier: 0.05,
-    collisionBoost: 1,
+    collisionBoostMultiplier: 0.08,
+    collisionBoost: 1.5,
+    rainMode: 'hybrid',
 };
 
 export class Raindrops {
@@ -159,26 +160,45 @@ export class Raindrops {
             const x = drop.x;
             const y = drop.y;
             const r = drop.r;
-            const spreadX = drop.spreadX;
-            const spreadY = drop.spreadY;
+            const vx = drop.vx || 0;
+            const vy = drop.vy || 0.1;
 
-            const scaleX = 1;
-            const scaleY = 1.5;
+            const speedMag = Math.sqrt(vx * vx + vy * vy);
+
+            let angle = Math.PI / 2;
+            let stretch = 1.0;
+            let compress = 1.0;
+
+            // Aerodynamic liquid streak elongation when moving
+            if (speedMag > 0.08) {
+                angle = Math.atan2(vy, vx);
+                stretch = 1.0 + Math.min(2.5, (speedMag - 0.08) * 0.55);
+                compress = 1.0 / Math.sqrt(stretch); // Liquid volume preservation
+            }
 
             let d = Math.max(0, Math.min(1, ((r - this.options.minR) / (this.deltaR)) * 0.9));
-            d *= 1 / (((drop.spreadX + drop.spreadY) * 0.5) + 1);
+            d *= 1 / (((stretch + compress) * 0.5));
 
+            ctx.save();
             ctx.globalAlpha = 1;
             ctx.globalCompositeOperation = 'source-over';
+            ctx.translate(x * this.scale, y * this.scale);
+            ctx.rotate(angle - Math.PI / 2); // Orient drop along movement vector
+            ctx.scale(compress, stretch);
 
             d = Math.floor(d * (this.dropsGfx.length - 1));
+            d = Math.max(0, Math.min(this.dropsGfx.length - 1, d));
+
+            const rw = r * this.scale;
+            // Perfectly round 1:1 ratio liquid droplet canvas quad
             ctx.drawImage(
                 this.dropsGfx[d],
-                (x - (r * scaleX * (spreadX + 1))) * this.scale,
-                (y - (r * scaleY * (spreadY + 1))) * this.scale,
-                (r * 2 * scaleX * (spreadX + 1)) * this.scale,
-                (r * 2 * scaleY * (spreadY + 1)) * this.scale,
+                -rw,
+                -rw,
+                rw * 2,
+                rw * 2,
             );
+            ctx.restore();
         }
     }
 
@@ -257,85 +277,65 @@ export class Raindrops {
         this.timeouts = [];
     }
 
+    updateDroplets(timeScale) {
+        if (this.options.dropletsRate <= 0) return;
+
+        this.dropletsCounter += this.options.dropletsRate * timeScale * this.areaMultiplier;
+
+        const maxDroplets = this.options.maxDrops * this.areaMultiplier * 6;
+        while (this.dropletsCounter > 1) {
+            this.dropletsCounter--;
+            const count = random(1, 3);
+            const baseR = random(...this.options.dropletsSize);
+            const x = random(0, this.width / this.scale);
+            const y = random(0, this.height / this.scale);
+
+            for (let i = 0; i < count; i++) {
+                this.drawDroplet(
+                    x + random(-15, 15),
+                    y + random(-15, 15),
+                    baseR * random(0.5, 1.2),
+                );
+            }
+        }
+    }
+
     updateRain(timeScale) {
+        if (!this.options.raining) return [];
+
         const rainDrops = [];
-        if (this.options.raining) {
-            const limit = this.options.rainLimit * timeScale * this.areaMultiplier;
-            let count = 0;
-            const cx = (this.width / this.scale) * 0.5;
-            const cy = (this.height / this.scale) * 0.5;
-            while (chance(this.options.rainChance * timeScale * this.areaMultiplier) && count < limit) {
-                count++;
-                
-                // 3-Population System (80% Tiny/Micro streaks, 15% Medium droplets, 5% Large beads)
-                let r;
-                const layerRoll = Math.random();
-                if (layerRoll < 0.80) {
-                    r = random(this.options.minR * 0.35, this.options.minR * 0.75);
-                } else if (layerRoll < 0.95) {
-                    r = random(this.options.minR * 0.90, this.options.maxR * 0.45);
-                } else {
-                    r = random(this.options.maxR * 0.45, this.options.maxR * 0.85);
-                }
+        const limit = (this.options.rainLimit || 4) * timeScale * this.areaMultiplier;
+        let count = 0;
 
-                let x = random(this.width / this.scale);
-                let y = random((this.height / this.scale) * this.options.spawnArea[0], (this.height / this.scale) * this.options.spawnArea[1]);
+        while (chance(this.options.rainChance * timeScale * this.areaMultiplier) && count < limit) {
+            count++;
+            const spawnX = random(0, this.width / this.scale);
+            const spawnY = random(...this.options.spawnArea) * (this.height / this.scale);
+            const r = random(this.options.minR, this.options.maxR);
 
-                // Sparse Periphery Filtering for 3rd Person Camera (keeps center 40% screen clean for driving view)
-                if (this.options.sparsePeriphery) {
-                    const normX = Math.abs(x - cx) / cx;
-                    const normY = Math.abs(y - cy) / cy;
-                    if (normX < 0.35 && normY < 0.35) { // Skip center screen spawn
-                        continue;
-                    }
-                }
+            // Per-droplet Surface Tension / Adhesion factor (small drops = high adhesion, large = lower)
+            const relR = (r - this.options.minR) / Math.max(1, this.options.maxR - this.options.minR);
+            const baseAdhesion = 1.0 - (relR * 0.7);
+            const adhesion = Math.min(0.98, Math.max(0.15, baseAdhesion + random(-0.15, 0.15)));
 
-                const dx = (x - cx) / cx;
-                const windFactor = this.options.windSpread || 0.0;
-                const ambientWind = this.options.ambientWind || { x: 0, y: 0 };
-                const rainDrop = this.createDrop({
-                    x: x,
-                    y: y,
-                    r: r,
-                    momentum: 1 + ((r - this.options.minR) * 0.1) + random(2),
-                    momentumX: (dx * random(0.5, 2.5) + ambientWind.x * 1.5) * Math.min(1.0, windFactor + 0.4),
-                    spreadX: 1.5,
-                    spreadY: 1.5,
-                });
-                if (rainDrop != null) {
-                    rainDrops.push(rainDrop);
-                }
+            const rainDrop = this.createDrop({
+                x: spawnX,
+                y: spawnY,
+                r: r,
+                adhesion: adhesion,
+                momentum: random(1, 4),
+                momentumX: 0,
+                shrink: 0,
+                isNew: true,
+            });
+            if (rainDrop != null) {
+                rainDrops.push(rainDrop);
             }
         }
         return rainDrops;
     }
 
-
-    updateDroplets(timeScale) {
-        if (!this.options.raining) {
-            this.dropletsCtx.clearRect(0, 0, this.droplets.width, this.droplets.height);
-            this.ctx.clearRect(0, 0, this.width, this.height);
-            return;
-        }
-        if (this.textureCleaningIterations > 0) {
-            this.textureCleaningIterations -= 1 * timeScale;
-            this.dropletsCtx.globalCompositeOperation = 'destination-out';
-            this.dropletsCtx.fillStyle = `rgba(0,0,0,${0.05 * timeScale})`;
-            this.dropletsCtx.fillRect(
-                0, 0,
-                this.width * this.dropletsPixelDensity,
-                this.height * this.dropletsPixelDensity
-            );
-        }
-        this.dropletsCounter += this.options.dropletsRate * timeScale * this.areaMultiplier;
-        times(this.dropletsCounter, () => {
-            this.dropletsCounter--;
-            this.drawDroplet(
-                random(this.width / this.scale),
-                random(this.height / this.scale),
-                random(...this.options.dropletsSize, (n) => n * n),
-            );
-        });
+    drawDroplets() {
         this.ctx.drawImage(this.droplets, 0, 0, this.width, this.height);
     }
 
@@ -352,10 +352,12 @@ export class Raindrops {
             return va > vb ? 1 : va === vb ? 0 : -1;
         });
 
-        // Wind Center of Screen (Windshield focal point)
+        // Wind Center of Screen (Windshield/Camera focal point)
         const cx = (this.width / this.scale) * 0.5;
         const cy = (this.height / this.scale) * 0.45;
-        const windFactor = this.options.windSpread || 0.0;
+        const speedRatio = this.options.speedRatio || 0.0;
+        const steerAngle = this.options.steerAngle || 0.0;
+        const ambientWind = this.options.ambientWind || { x: 0, y: 0 };
 
         this.drops.forEach((drop, i) => {
             if (!drop.killed) {
@@ -366,13 +368,12 @@ export class Raindrops {
                     drop.shrink += 0.01;
                 }
 
-                // Drops maintain their radius while streaking under high wind!
                 drop.r -= drop.shrink * timeScale;
                 if (drop.r <= 0) drop.killed = true;
 
-                if (this.options.raining) {
+                if (this.options.raining && speedRatio > 0.15) {
                     // Enhanced trailing when driving fast so drops leave visible wet streaks
-                    const trailSpeedBonus = windFactor > 0.1 ? windFactor * 4.0 : 0.0;
+                    const trailSpeedBonus = speedRatio * 5.0;
                     drop.lastSpawn += (drop.momentum + trailSpeedBonus) * timeScale * this.options.trailRate;
 
                     if (drop.lastSpawn > drop.nextSpawn) {
@@ -380,7 +381,7 @@ export class Raindrops {
                             x: drop.x + (random(-drop.r, drop.r) * 0.1),
                             y: drop.y - (drop.r * 0.01),
                             r: drop.r * random(...this.options.trailScaleRange),
-                            spreadY: drop.momentum * 0.1,
+                            adhesion: Math.min(0.95, (drop.adhesion || 0.5) + 0.2), // Micro trails have high adhesion
                             parent: drop,
                         });
 
@@ -393,59 +394,51 @@ export class Raindrops {
                     }
                 }
 
-                const ambientWind = this.options.ambientWind || { x: 0, y: 0 };
-                const ambientForceX = ambientWind.x * (2.5 + windFactor * 2.0);
-                const ambientForceY = ambientWind.y * (1.8 + windFactor * 1.5);
+                // HIGH-SPEED DRIVECLUB RADIAL WIND & AERODYNAMIC AIRFLOW MODEL
+                const dx = (drop.x - cx) / cx;
+                const dy = (drop.y - cy) / cy;
+                const distFromCenter = Math.max(0.08, Math.sqrt(dx * dx + dy * dy));
 
-                // Effective momentum: High speed wind & ambient crosswind drive continuous fast outward movement!
-                const effectiveMomentum = Math.max(drop.momentum, windFactor * 5.0 + Math.abs(ambientWind.x) * 3.0);
-                const moved = (effectiveMomentum > 0) || (windFactor > 0.05) || (Math.abs(ambientWind.x) > 0.05);
+                // 1. Gravity fall when stopped / slow:
+                const gravityFall = (0.4 + (drop.r / this.options.maxR) * 1.5 + drop.momentum * 0.35) * Math.max(0.05, 1.0 - speedRatio * 0.90);
 
-                if (moved && !drop.killed) {
-                    // Normalized offset vector from center of windshield (-1.0 to +1.0)
-                    const dx = (drop.x - cx) / cx;
-                    const dy = (drop.y - cy) / cy;
-                    const distFromCenter = Math.sqrt(dx * dx + dy * dy) + 0.06;
+                // 2. High-Speed Radial Airflow: blows drops violently OUTWARD from screen center
+                // At 200 km/h (speedRatio ~ 1.0-1.4), radial airflow speed reaches 25-45 px/frame!
+                const airflowPower = (speedRatio > 0.05) ? ((speedRatio * 18.0) + Math.pow(speedRatio, 1.8) * 14.0) : 0.0;
+                const steerShift = steerAngle * speedRatio * 12.0;
 
-                    // Fast high-speed radial wind dispersion across screen!
-                    const radialSpeed = (effectiveMomentum * 4.5 + 9.0) * windFactor;
-                    const windX = (dx / distFromCenter) * radialSpeed;
-                    const windY = (dy / distFromCenter) * radialSpeed;
+                const windX = (dx / distFromCenter) * airflowPower + steerShift + ambientWind.x * (2.0 + speedRatio * 3.0);
+                const windY = (dy / distFromCenter) * airflowPower + ambientWind.y * 2.0;
 
-                    const gravityY = drop.momentum * Math.max(0.0, 0.85 - windFactor * 0.45);
+                const moveX = (windX + drop.momentumX) * timeScale * this.options.globalTimeScale;
+                const moveY = (gravityFall + windY) * timeScale * this.options.globalTimeScale;
 
-                    // Update position - drop physically streaks across the glass under relative headwind + ambient crosswind
-                    const moveX = (windX + drop.momentumX + ambientForceX) * this.options.globalTimeScale;
-                    const moveY = (gravityY + windY + ambientForceY) * this.options.globalTimeScale;
-                    drop.x += moveX;
-                    drop.y += moveY;
+                drop.x += moveX;
+                drop.y += moveY;
 
-                    // Dynamic Elongation & Streaking along movement direction!
-                    if (windFactor > 0.1) {
-                        const targetSpreadX = Math.min(3.5, Math.abs(moveX) * 0.35 * windFactor);
-                        const targetSpreadY = Math.min(3.5, Math.abs(moveY) * 0.35 * windFactor);
-                        drop.spreadX += (targetSpreadX - drop.spreadX) * Math.min(1.0, 0.5 * timeScale);
-                        drop.spreadY += (targetSpreadY - drop.spreadY) * Math.min(1.0, 0.5 * timeScale);
-                    } else {
-                        drop.spreadX *= Math.pow(0.4, timeScale);
-                        drop.spreadY *= Math.pow(0.7, timeScale);
-                    }
+                drop.vx = moveX;
+                drop.vy = moveY;
 
-                    // Only despawn when the drop physically travels past the screen edge!
-                    if (
-                        drop.y > (this.height / this.scale) + drop.r + 30 ||
-                        drop.y < -drop.r - 30 ||
-                        drop.x < -drop.r - 30 ||
-                        drop.x > (this.width / this.scale) + drop.r + 30
-                    ) {
+                const speedMag = Math.sqrt(moveX * moveX + moveY * moveY);
+
+                // High-speed wind detachment for large drops
+                if (speedRatio > 0.70 && drop.r > this.options.minR * 1.8) {
+                    if (Math.random() < (speedRatio - 0.70) * 0.08 * timeScale) {
                         drop.killed = true;
                     }
-                } else {
-                    drop.spreadX *= Math.pow(0.4, timeScale);
-                    drop.spreadY *= Math.pow(0.7, timeScale);
                 }
 
-                const checkCollision = (moved || drop.isNew) && !drop.killed;
+                // Despawn when droplet physically travels past screen edge boundaries
+                if (
+                    drop.y > (this.height / this.scale) + drop.r + 30 ||
+                    drop.y < -drop.r - 30 ||
+                    drop.x < -drop.r - 30 ||
+                    drop.x > (this.width / this.scale) + drop.r + 30
+                ) {
+                    drop.killed = true;
+                }
+
+                const checkCollision = !drop.killed;
                 drop.isNew = false;
 
                 if (checkCollision) {
@@ -459,23 +452,24 @@ export class Raindrops {
                             drop2.parent !== drop &&
                             !drop2.killed
                         ) {
-                            const dx = drop2.x - drop.x;
-                            const dy = drop2.y - drop.y;
-                            const d = Math.sqrt((dx * dx) + (dy * dy));
-                            const collisionThreshold = (drop.r + drop2.r) * (this.options.collisionRadius + (effectiveMomentum * this.options.collisionRadiusIncrease * timeScale) + (windFactor * 0.15));
+                            const cdx = drop2.x - drop.x;
+                            const cdy = drop2.y - drop.y;
+                            const d = Math.sqrt((cdx * cdx) + (cdy * cdy));
+                            const collisionThreshold = (drop.r + drop2.r) * (this.options.collisionRadius + (speedMag * 0.05) + (speedRatio * 0.15));
                             if (d < collisionThreshold) {
                                 const pi = Math.PI;
                                 const r1 = drop.r;
                                 const r2 = drop2.r;
                                 const a1 = pi * (r1 * r1);
                                 const a2 = pi * (r2 * r2);
-                                let targetR = Math.sqrt((a1 + (a2 * 0.8)) / pi);
+                                let targetR = Math.sqrt((a1 + (a2 * 0.85)) / pi);
                                 if (targetR > this.options.maxR) targetR = this.options.maxR;
 
                                 drop.r = targetR;
-                                drop.momentumX += dx * 0.15;
+                                drop.adhesion = Math.max(0.15, drop.adhesion * 0.85); // Merged larger drop lowers adhesion
+                                drop.momentumX += cdx * 0.15;
                                 drop2.killed = true;
-                                drop.momentum = Math.max(drop2.momentum, Math.min(50, drop.momentum + (targetR * this.options.collisionBoostMultiplier) + this.options.collisionBoost + windFactor * 5.0));
+                                drop.momentum = Math.min(60, drop.momentum + (targetR * 0.1) + 2.5 + speedRatio * 5.0);
                             }
                         }
                     }
@@ -487,7 +481,9 @@ export class Raindrops {
 
                 if (!drop.killed) {
                     newDrops.push(drop);
-                    if (moved && this.options.dropletsRate > 0) this.clearDroplets(drop.x, drop.y, drop.r * this.options.dropletsCleaningRadiusMultiplier);
+                    if (speedMag > 0.05 && this.options.dropletsRate > 0) {
+                        this.clearDroplets(drop.x, drop.y, drop.r * (this.options.dropletsCleaningRadiusMultiplier || 1.4));
+                    }
                     this.drawDrop(this.ctx, drop);
                 }
             }
