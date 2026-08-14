@@ -519,8 +519,8 @@ function updateCamera(dt) {
         camLookAt.lerp(camTarget, s);
         camera.lookAt(camLookAt);
 
-        // Disable 2D windshield glass droplets in 3rd-person chase camera so drops don't float like flies over the car
-        if (weather.rainPass) weather.rainPass.enabled = false;
+        // Keep the tuned camera-lens rain visible in 3rd-person chase view.
+        if (weather.rainPass) weather.rainPass.enabled = (weather.weatherType !== 3);
     }
 
     /* ---------------------------------------------
