@@ -12,17 +12,18 @@ export const RainShader = {
         uWaterMap: { value: new THREE.Texture() },  // Raindrops 2D canvas water map
         uTextureShine: { value: new THREE.Texture() }, // Drop specular shine texture
         uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
-        uMinRefraction: { value: 100.0 },
-        uRefractionDelta: { value: 200.0 },
-        uBrightness: { value: 1.15 },
+        uMinRefraction: { value: 0.2 },
+        uRefractionDelta: { value: 1.5 },
+        uBrightness: { value: 1.0 },
         uAlphaMultiply: { value: 12.0 },
         uAlphaSubtract: { value: 3.0 },
-        uDropBlurAmount: { value: 10.0 },           // Balanced out-of-focus bokeh depth-of-field blur
+        uDropBlurAmount: { value: 0.2 },           // Tiny, subtle depth-of-field blur
         uLightningFlash: { value: 0.0 },
-        uRenderShine: { value: true },
+        uRenderShine: { value: false },
         uRenderShadow: { value: false },
         uWeatherType: { value: 0 },
         uGForce: { value: new THREE.Vector2(0, 0) },
+        uWindVector: { value: new THREE.Vector2(0, 0) },
         uTime: { value: 0.0 },
         uSpeed: { value: 0.0 },
     },
@@ -52,6 +53,7 @@ export const RainShader = {
         uniform bool uRenderShadow;
         uniform int uWeatherType;
         uniform vec2 uGForce;
+        uniform vec2 uWindVector;
         uniform float uSpeed;
 
         varying vec2 vUv;
@@ -94,9 +96,9 @@ export const RainShader = {
             float x = cur.g; // Normal X
             float y = cur.r; // Normal Y
 
-            // Rich high-visibility opacity so rain droplets stand out clearly (0.70 static up to 0.85 at speed)
+            // Driveclub Target Setting: Balanced glass droplet opacity (0.28 - 0.42)
             float speedRatio = clamp(uSpeed / 60.0, 0.0, 1.2);
-            float speedOpacityCap = mix(0.70, 0.85, speedRatio);
+            float speedOpacityCap = mix(0.28, 0.42, speedRatio);
             float a = smoothstep(0.005, 0.45, cur.a) * speedOpacityCap;
 
             if (a < 0.001) {
@@ -104,22 +106,23 @@ export const RainShader = {
                 return;
             }
 
-            // Normal vector & g-force cornering refraction adjustment
+            // Normal vector, g-force cornering & ambient environmental wind refraction adjustment
             vec2 refraction = (vec2(x, y) - 0.5) * 2.0;
-            refraction.x += uGForce.x * 0.08;
+            refraction.x += (uGForce.x * 0.08) + (uWindVector.x * 0.12);
+            refraction.y += (uWindVector.y * 0.08);
 
             vec2 refractionPos = vUv + (pixel() * refraction * (uMinRefraction + (d * uRefractionDelta)));
             refractionPos = clamp(refractionPos, vec2(0.001), vec2(0.999));
 
-            // Multi-tap bokeh depth-of-field blur kernel (9 high-quality taps)
+            // Multi-tap bokeh depth-of-field blur kernel (9 high-quality taps, 1.0 total weight)
             vec2 pRad = pixel() * uDropBlurAmount * (1.0 + d * 0.8);
-            vec4 tex = texture2D(tDiffuse, refractionPos) * 0.28;
+            vec4 tex = texture2D(tDiffuse, refractionPos) * 0.40;
 
             // Inner Ring
-            tex += texture2D(tDiffuse, refractionPos + vec2(pRad.x, 0.0)) * 0.13;
-            tex += texture2D(tDiffuse, refractionPos - vec2(pRad.x, 0.0)) * 0.13;
-            tex += texture2D(tDiffuse, refractionPos + vec2(0.0, pRad.y)) * 0.13;
-            tex += texture2D(tDiffuse, refractionPos - vec2(0.0, pRad.y)) * 0.13;
+            tex += texture2D(tDiffuse, refractionPos + vec2(pRad.x, 0.0)) * 0.10;
+            tex += texture2D(tDiffuse, refractionPos - vec2(pRad.x, 0.0)) * 0.10;
+            tex += texture2D(tDiffuse, refractionPos + vec2(0.0, pRad.y)) * 0.10;
+            tex += texture2D(tDiffuse, refractionPos - vec2(0.0, pRad.y)) * 0.10;
 
             // Outer Bokeh Ring
             vec2 pRad2 = pRad * 1.8;
@@ -128,7 +131,7 @@ export const RainShader = {
             tex += texture2D(tDiffuse, refractionPos + vec2(pRad2.x, -pRad2.y) * 0.707) * 0.05;
             tex += texture2D(tDiffuse, refractionPos + vec2(-pRad2.x, pRad2.y) * 0.707) * 0.05;
 
-            // Specular drop shine glints
+            // Specular drop shine glints & 3D liquid highlight calculation
             if (uRenderShine) {
                 float maxShine = 490.0;
                 float minShine = maxShine * 0.18;
@@ -138,18 +141,23 @@ export const RainShader = {
                 tex = blend(tex, shine * 0.7);
             }
 
-            vec4 fg = vec4(tex.rgb * uBrightness * a * (1.0 + 0.5 * uLightningFlash), a);
+            // 3D Liquid Specular Refraction & Rim Highlight from environment
+            vec3 N = normalize(vec3(refraction * 0.7, sqrt(max(0.01, 1.0 - dot(refraction * 0.7, refraction * 0.7)))));
+            vec3 L = normalize(vec3(-0.35, 0.65, 0.68));
+            vec3 V = vec3(0.0, 0.0, 1.0);
+            vec3 H = normalize(L + V);
 
-            // Droplet edge shadows
-            if (uRenderShadow) {
-                float borderAlpha = fgColor(vec2(0.0, -(d * 6.0) * pixel().y)).a;
-                borderAlpha = borderAlpha * uAlphaMultiply - (uAlphaSubtract + 0.5);
-                borderAlpha = clamp(borderAlpha, 0.0, 1.0) * 0.2;
-                vec4 border = vec4(0.0, 0.0, 0.0, borderAlpha);
-                fg = blend(border, fg);
-            }
+            // Rim & specular highlight glints (tiny bright directional edge)
+            float rim = pow(1.0 - max(0.0, dot(N, V)), 3.0);
+            float specHighlight = pow(max(0.0, dot(N, H)), 24.0) * (0.5 + d * 1.5);
+            vec3 lightGlint = vec3(0.90, 0.96, 1.0) * (specHighlight + rim * 0.25 * d);
 
-            gl_FragColor = blend(bg, fg);
+            // Refracted scene light transmission
+            vec3 refractedScene = tex.rgb * uBrightness * (1.0 + 0.5 * uLightningFlash);
+            vec3 dropColor = refractedScene + lightGlint;
+
+            // Pure physical refraction blend over background scene
+            gl_FragColor = vec4(mix(bg.rgb, dropColor, a), bg.a);
         }
 
     `,

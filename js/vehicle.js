@@ -358,7 +358,23 @@ export class Vehicle {
                     this.gltfFrontWheels = [wheelFL, wheelFR];
                 }
 
-                if (this.proceduralMesh) this.proceduralMesh.visible = false;
+                // Apply glossy Ferrari Red body paint with balanced moonlight sheen
+                const bodyMesh = carModel.getObjectByName('body');
+                if (bodyMesh) {
+                    this.bodyMaterial = new THREE.MeshPhysicalMaterial({
+                        color: 0xd11a2a,
+                        metalness: 0.45,
+                        roughness: 0.25,
+                        clearcoat: 0.7,
+                        clearcoatRoughness: 0.15,
+                    });
+                    bodyMesh.material = this.bodyMaterial;
+                }
+
+                // Hide procedural car body fallback
+                if (this.proceduralMesh) {
+                    this.proceduralMesh.visible = false;
+                }
                 this.mesh.add(carModel);
                 this.isGltfLoaded = true;
             }, undefined, (err) => {

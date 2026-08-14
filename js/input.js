@@ -14,12 +14,13 @@ export class InputManager {
         this.precision = false; // Right Shift (50% steering/acceleration sensitivity)
         this.precision25 = false; // Right Ctrl (25% steering/acceleration sensitivity)
 
-        // Light Controls
+        // Light Controls & Camera View
         this.headlightMode = 1; // 0: OFF, 1: LOW BEAM, 2: HIGH BEAM (default Low Beam on start)
         this.hazards = false;
         this.signalLeft = false;
         this.signalRight = false;
         this.underglow = true;
+        this.cameraMode = 0; // 0: 3rd Person Chase View, 1: 1st Person Cockpit View, 2: 1st Person Bumper View
 
         this._onKeyDown = (e) => this._handleKey(e, true);
         this._onKeyUp = (e) => this._handleKey(e, false);
@@ -51,6 +52,9 @@ export class InputManager {
         // Toggle triggers (only on keydown)
         if (pressed && !e.repeat) {
             switch (e.code) {
+                case 'KeyC': case 'KeyV':
+                    this.cameraMode = (this.cameraMode + 1) % 3;
+                    break;
                 case 'KeyL': case 'KeyF':
                     this.headlightMode = (this.headlightMode + 1) % 3;
                     break;
@@ -86,7 +90,7 @@ export class InputManager {
             'KeyW', 'KeyS', 'KeyA', 'KeyD',
             'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
             'Space', 'ShiftLeft', 'ShiftRight', 'ControlRight',
-            'KeyL', 'KeyF', 'KeyH', 'KeyQ', 'KeyE', 'KeyU',
+            'KeyC', 'KeyV', 'KeyL', 'KeyF', 'KeyH', 'KeyQ', 'KeyE', 'KeyU',
         ];
         if (gameKeys.includes(e.code)) {
             e.preventDefault();

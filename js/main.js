@@ -438,39 +438,73 @@ const camLookAt = new THREE.Vector3();
 
 function updateCamera(dt) {
     const sr = Math.min(Math.abs(vehicle.speed) / vehicle.maxSpeed, 1);
+    const mode = input.cameraMode !== undefined ? input.cameraMode : 0;
 
-    // Smoothly decay mouse orbit offset when mouse is released
-    if (!isMouseDown) {
-        mouseOrbitYaw *= Math.pow(0.01, dt);
-        mouseOrbitPitch *= Math.pow(0.01, dt);
+    if (mode === 1) { // 1st Person Cockpit / Windscreen View
+        const headX = vehicle.mesh.position.x - Math.sin(vehicle.heading) * (-0.15) + Math.cos(vehicle.heading) * 0.35;
+        const headY = vehicle.mesh.position.y + 1.18;
+        const headZ = vehicle.mesh.position.z - Math.cos(vehicle.heading) * (-0.15) - Math.sin(vehicle.heading) * 0.35;
+
+        camera.position.set(headX, headY, headZ);
+
+        camTarget.set(
+            vehicle.mesh.position.x - Math.sin(vehicle.heading) * 20.0,
+            vehicle.mesh.position.y + 1.05,
+            vehicle.mesh.position.z - Math.cos(vehicle.heading) * 20.0
+        );
+        camera.lookAt(camTarget);
+
+        // Ensure rain pass is active for camera lens / windscreen drops
+        if (weather.rainPass) weather.rainPass.enabled = true;
+
+    } else if (mode === 2) { // 1st Person Hood / Bumper View
+        const bumpX = vehicle.mesh.position.x - Math.sin(vehicle.heading) * 2.2;
+        const bumpY = vehicle.mesh.position.y + 0.65;
+        const bumpZ = vehicle.mesh.position.z - Math.cos(vehicle.heading) * 2.2;
+
+        camera.position.set(bumpX, bumpY, bumpZ);
+
+        camTarget.set(
+            vehicle.mesh.position.x - Math.sin(vehicle.heading) * 20.0,
+            vehicle.mesh.position.y + 0.65,
+            vehicle.mesh.position.z - Math.cos(vehicle.heading) * 20.0
+        );
+        camera.lookAt(camTarget);
+
+        if (weather.rainPass) weather.rainPass.enabled = true;
+
+    } else { // 3rd Person Chase View (Sparse 3-Layer Camera Lens Droplet Mode)
+        if (!isMouseDown) {
+            mouseOrbitYaw *= Math.pow(0.01, dt);
+            mouseOrbitPitch *= Math.pow(0.01, dt);
+        }
+
+        const dist = 5.8 + zoomOffset;
+        const height = 2.2 + mouseOrbitPitch * 3;
+        const a = vehicle.heading + mouseOrbitYaw;
+
+        camIdeal.set(
+            vehicle.mesh.position.x + Math.sin(a) * dist,
+            vehicle.mesh.position.y + Math.max(1.0, height),
+            vehicle.mesh.position.z + Math.cos(a) * dist,
+        );
+
+        const s = 1 - Math.exp(-25 * dt);
+        camera.position.lerp(camIdeal, s);
+
+        camTarget.set(
+            vehicle.mesh.position.x - Math.sin(vehicle.heading) * 3,
+            vehicle.mesh.position.y + 0.9,
+            vehicle.mesh.position.z - Math.cos(vehicle.heading) * 3,
+        );
+        camLookAt.lerp(camTarget, s);
+        camera.lookAt(camLookAt);
+
+        // Keep rain pass enabled for sparse 3-layered camera lens droplets
+        if (weather.rainPass) weather.rainPass.enabled = true;
     }
 
-    // Grounded, locked chase camera framing (5.4m distance, 1.85m eye height)
-    const dist = 5.4 + zoomOffset;
-    const height = 1.85 + mouseOrbitPitch * 2;
-    const a = vehicle.heading + mouseOrbitYaw;
-
-    // Ideal camera position anchored tightly behind vehicle
-    camIdeal.set(
-        vehicle.mesh.position.x + Math.sin(a) * dist,
-        vehicle.mesh.position.y + height,
-        vehicle.mesh.position.z + Math.cos(a) * dist,
-    );
-
-    // Instant/tight chase tracking (s = 1 - exp(-32 * dt))
-    const s = 1 - Math.exp(-32 * dt);
-    camera.position.lerp(camIdeal, s);
-
-    // Look at target locked ahead of vehicle nose
-    camTarget.set(
-        vehicle.mesh.position.x - Math.sin(vehicle.heading) * 4.5,
-        vehicle.mesh.position.y + 0.95,
-        vehicle.mesh.position.z - Math.cos(vehicle.heading) * 4.5,
-    );
-    camLookAt.lerp(camTarget, s);
-    camera.lookAt(camLookAt);
-
-    // Fixed 60 deg FOV for stable, grounded perspective
+    // Fixed FOV (60 deg)
     camera.fov = 60;
     camera.updateProjectionMatrix();
 
@@ -504,6 +538,7 @@ const elOverlay = document.getElementById('speed-overlay');
 const elHint = document.getElementById('controls-hint');
 const elPrecision = document.getElementById('precision-badge');
 
+const elBadgeCamera = document.getElementById('badge-camera');
 const elBadgeHeadlights = document.getElementById('badge-headlights');
 const elBadgeSigLeft = document.getElementById('badge-signal-left');
 const elBadgeHazards = document.getElementById('badge-hazards');
@@ -530,6 +565,14 @@ function updateHUD() {
 
     // Nitro class
     elOverlay.classList.toggle('nitro-active', vehicle.isNitro);
+
+    // Camera View Status Badge
+    if (elBadgeCamera) {
+        const mode = input.cameraMode !== undefined ? input.cameraMode : 0;
+        if (mode === 1) elBadgeCamera.textContent = '🎥 1ST COCKPIT';
+        else if (mode === 2) elBadgeCamera.textContent = '🎥 1ST BUMPER';
+        else elBadgeCamera.textContent = '🎥 3RD CHASE';
+    }
 
     // Precision mode badge (25% on Right Ctrl, 50% on Right Shift)
     if (elPrecision) {
@@ -662,7 +705,7 @@ function animate() {
     vehicle.update(dt, input, weather);
     world.update(vehicle.mesh.position);
     cloudSystem.update(dt, vehicle.mesh.position);
-    weather.update(dt);
+    weather.update(dt, input.cameraMode, camera);
     updateCamera(dt);
     updateHUD();
 
