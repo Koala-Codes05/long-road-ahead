@@ -20,6 +20,9 @@ export class TurningSystem {
         this.gripRatio = 1.0;
         this.isHardTurning = false;
         this.isUndersteering = false;
+        this.targetLateralVelocity = 0;
+        this.tireScrub = 0;
+        this.brakeLockRatio = 0;
     }
 
     update(dt, input, weatherGripFactor = 1.0, weatherType = 3) {
@@ -28,8 +31,10 @@ export class TurningSystem {
         const kmh = Math.abs(vLong * 3.6);
 
         // 1. Speed-Sensitive Progressive Steering Lock Angle
-        // Max steer lock ~0.50 rad (28 deg) at low speed; progressively reduced at higher speeds
-        const maxSteerAngleRad = (0.50 / (1.0 + Math.pow(kmh / 100.0, 1.1))) * sensMult;
+        // Big lock at low speed for U-turns, reduced only once the car is genuinely fast.
+        const lowSpeedLock = THREE.MathUtils.lerp(0.72, 0.54, THREE.MathUtils.smoothstep(kmh, 0, 80));
+        const highSpeedTrim = 1.0 / (1.0 + Math.pow(Math.max(0, kmh - 80) / 150.0, 1.25));
+        const maxSteerAngleRad = lowSpeedLock * highSpeedTrim * sensMult;
         const steerDir = input.left ? 1 : (input.right ? -1 : 0);
         const targetSteer = steerDir * maxSteerAngleRad;
 
@@ -51,20 +56,25 @@ export class TurningSystem {
 
         // 3. Kinematic Bicycle Model: Desired Yaw Rate from Wheelbase & Velocity
         const wheelbase = this.v.wheelbase || 2.65; // Ferrari 458 wheelbase = 2.65m
-        const desiredYawRate = Math.tan(this.steerAngle) * (vLong / wheelbase) * steerDirection;
+        const steerTan = Math.tan(this.steerAngle);
+        const turnSpeed = Math.sign(vLong || 1) * Math.max(Math.abs(vLong), THREE.MathUtils.lerp(7.0, 1.0, THREE.MathUtils.smoothstep(kmh, 0, 55)));
+        const desiredYawRate = steerTan * (turnSpeed / wheelbase) * steerDirection;
+        const rearAxleRatio = (this.v.cgToRear || 1.35) / wheelbase;
+        const bodySlipAngle = Math.atan(rearAxleRatio * steerTan) * steerDirection;
 
         // 4. Dynamic Weight Transfer Effect on Front Tire Grip
         const loadTransfer = -(this.v.acceleratingSystem.aLong || 0) / 9.81;
         const frontGripFactor = THREE.MathUtils.clamp(1.0 + loadTransfer * 0.35, 0.80, 1.45);
 
         // 5. Tire Grip Limits with Aero Downforce, Weather & Aquaplaning
-        const aeroGripBonus = Math.pow(kmh / 180.0, 1.3) * 0.40;
+        const aeroGripBonus = Math.min(0.05, Math.pow(kmh / 260.0, 1.1) * 0.045);
 
         // Aquaplaning: progressive grip loss above 120 km/h in heavy storm
         const aquaPlanFactor = Math.max(0, (kmh - 120) / 80) * 0.3 * (weatherType === 0 ? 1 : 0);
         const effectiveWeatherGrip = weatherGripFactor * (1.0 - aquaPlanFactor);
 
-        const maxLatG = (1.45 + aeroGripBonus) * frontGripFactor * effectiveWeatherGrip;
+        const lowSpeedMechanicalGrip = THREE.MathUtils.lerp(0.45, 0.0, THREE.MathUtils.smoothstep(kmh, 0, 70));
+        const maxLatG = (1.04 + lowSpeedMechanicalGrip + aeroGripBonus) * frontGripFactor * effectiveWeatherGrip;
         const maxLatAccel = maxLatG * 9.81;
 
         // Calculate desired lateral acceleration
@@ -73,21 +83,48 @@ export class TurningSystem {
         // Compute Tire Grip Ratio with progressive soft saturation
         const absDesiredLat = Math.max(Math.abs(desiredLatAccel), 0.001);
         const rawGrip = maxLatAccel / absDesiredLat;
-        this.gripRatio = THREE.MathUtils.clamp(0.35 + 0.65 * Math.min(1.0, rawGrip), 0.35, 1.0);
+        const saturation = THREE.MathUtils.clamp(rawGrip, 0.12, 1.0);
+        this.gripRatio = rawGrip >= 1.0 ? 1.0 : THREE.MathUtils.clamp(Math.pow(rawGrip, 0.85), 0.12, 1.0);
+        const scrubEnable = THREE.MathUtils.smoothstep(kmh, 45.0, 95.0);
+        this.tireScrub = THREE.MathUtils.clamp((absDesiredLat - maxLatAccel) / maxLatAccel, 0.0, 1.8) * scrubEnable;
+        this.brakeLockRatio = input.backward && Math.abs(vLong) > 10.0
+            ? THREE.MathUtils.smoothstep(Math.abs(this.steerAngle), 0.08, 0.22) * THREE.MathUtils.smoothstep(kmh, 60.0, 150.0)
+            : 0.0;
 
         // Understeer State
-        this.isUndersteering = Math.abs(this.steerAngle) > 0.12 && this.gripRatio < 0.70 && Math.abs(vLong) > 12.0;
+        this.isUndersteering = Math.abs(this.steerAngle) > 0.10 && (this.tireScrub > 0.05 || this.brakeLockRatio > 0.2) && Math.abs(vLong) > 10.0;
 
         // 6. Tire Relaxation Length & Damped Yaw Rate
         // Simulates tire carcass flex — at low speed, steering barely affects heading
         const relaxFactor = 1.0 - Math.exp(-Math.abs(vLong) * dt / 0.2);
-        const actualYawRate = desiredYawRate * this.gripRatio * relaxFactor;
+        const lockedFrontGrip = 1.0 - this.brakeLockRatio * 0.65;
+        let actualYawRate = desiredYawRate * saturation * lockedFrontGrip * relaxFactor;
+
+        // Handbrake U-turn assist: lets the rear rotate around at low/medium speed
+        // without making normal high-speed steering twitchy.
+        const handbrakeTurnWindow = THREE.MathUtils.smoothstep(kmh, 8.0, 28.0) * (1.0 - THREE.MathUtils.smoothstep(kmh, 78.0, 125.0));
+        const handbrakeTurnAssist = input.handbrake && steerDir !== 0 ? handbrakeTurnWindow : 0.0;
+        if (handbrakeTurnAssist > 0.0) {
+            const pivotYawRate = steerDir * THREE.MathUtils.lerp(0.55, 1.35, 1.0 - THREE.MathUtils.smoothstep(kmh, 22.0, 90.0));
+            actualYawRate = THREE.MathUtils.lerp(actualYawRate, pivotYawRate, handbrakeTurnAssist * 0.42);
+        }
 
         // Slower yaw damping for weighty, progressive turn-in (~170ms to reach target)
         const yawDampSpeed = isChangingDirection ? 10.0 : 6.0;
         const yawDamp = 1.0 - Math.exp(-dt * yawDampSpeed);
         this.yawRate = THREE.MathUtils.lerp(this.yawRate, actualYawRate, yawDamp);
         this.v.yawRate = this.yawRate;
+        this.targetLateralVelocity = Math.tan(bodySlipAngle) * vLong * saturation * lockedFrontGrip * relaxFactor;
+        if (handbrakeTurnAssist > 0.0) {
+            const slideSign = Math.sign(steerDir);
+            const slideAmount = THREE.MathUtils.lerp(1.2, 3.8, THREE.MathUtils.smoothstep(kmh, 10.0, 70.0));
+            this.targetLateralVelocity += slideSign * slideAmount * handbrakeTurnAssist;
+            this.v.vLong *= (1.0 - 1.75 * handbrakeTurnAssist * dt);
+        }
+        if (this.tireScrub > 0.0 || this.brakeLockRatio > 0.0) {
+            const scrubDrag = Math.min(0.28, (this.tireScrub * 0.16 + this.brakeLockRatio * 0.34) * dt);
+            this.v.vLong *= (1.0 - scrubDrag);
+        }
 
         // Physical Lateral Acceleration capped strictly by peak tire grip limit
         this.aLat = THREE.MathUtils.clamp(vLong * this.yawRate, -maxLatAccel, maxLatAccel);
