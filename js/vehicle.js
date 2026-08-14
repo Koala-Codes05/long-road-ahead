@@ -2,54 +2,86 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 
+import { AcceleratingSystem } from './accelerating.js';
+import { TurningSystem } from './turning.js';
+import { DriftingSystem } from './drifting.js';
+import { ManeuversSystem } from './maneuvers.js';
+import { getRoadPoint } from './world.js';
+
 /**
- * Vehicle – Builds procedural car model and loads Ferrari 458 Italia 3D model.
- * Features: arcade physics, 6-gear transmission, 300km/h top speed,
- * sleek & realistic car lighting system (Low/High Beam, Taillights, Brake, Reverse, Signals/Hazards, Underglow).
+ * Vehicle — Modular Core Supercar Physics & Rendering Engine.
+ * Integrates Accelerating, Turning, Drifting, and Maneuver systems with 3D suspension,
+ * photorealistic GLTF model loading, hardware lighting, and particle effects.
  */
 export class Vehicle {
     constructor(scene) {
         this.scene = scene;
 
-        // Physics
-        this.speed = 0;
-        this.heading = 0; // radians, 0 = facing -Z
-        this.maxSpeed = 300 / 3.6; // 83.33 m/s = 300 km/h top speed
-        this.baseAcceleration = 5.2; // m/s^2 (0-100 km/h in ~3.8 seconds)
-        this.brakeForce = 25;
-        this.reverseMaxSpeed = 25; // ~90 km/h reverse
-        this.turnSpeed = 2.2;
-        this.drag = 0.995;
-        this.nitroBoost = 1.35;
-        this.isNitro = false;
-        this.steerAngle = 0;
-        this.currentSteer = 0;
-        this.lateralVelocity = 0;
-        this.rollAngle = 0;
-        this.pitchAngle = 0;
+        // Vehicle Telemetry & Mass Parameters (Ferrari 458 Italia Specs)
+        this.mass = 1420;        // kg
+        this.wheelbase = 2.65;   // meters
+        this.cgToFront = 1.30;   // meters
+        this.cgToRear = 1.35;    // meters
+        this.trackWidth = 1.68;  // meters
+        this.cgHeight = 0.42;    // meters
+        this.wheelRadius = 0.38; // meters
 
-        // Internals
+        // 2-DOF Dynamic Motion State
+        this.vLong = 0;     // Longitudinal velocity (m/s)
+        this.vLat = 0;      // Lateral slip velocity (m/s)
+        this.yawRate = 0;   // Angular yaw rotation rate (rad/s)
+        this.heading = 0;   // Orientation angle in world space (radians, 0 = facing -Z)
+        this.speed = 0;     // Telemetry alias
+        this.maxSpeed = 315 / 3.6;
+
+        // Dynamic Load Transfer & Suspension
+        this.aLong = 0;
+        this.aLat = 0;
+        this.pitchAngle = 0;
+        this.pitchVel = 0;
+        this.rollAngle = 0;
+        this.rollVel = 0;
+        this.heaveDisplacement = 0;
+        this.heaveVel = 0;
+
+        // Modular Subsystems
+        this.acceleratingSystem = new AcceleratingSystem(this);
+        this.turningSystem = new TurningSystem(this);
+        this.driftingSystem = new DriftingSystem(this);
+        this.maneuversSystem = new ManeuversSystem(this);
+
+        // Rendering & Lights Setup
         this.wheels = [];
         this.frontWheels = [];
         this.isGltfLoaded = false;
 
-        // Root vehicle container group
         this.mesh = new THREE.Group();
         this.mesh.position.set(0, 0, 0);
         this.scene.add(this.mesh);
 
-        // Hardware Lighting Container
         this._initLightingSystem();
+        this._initParticleEffects();
 
-        // Procedural fallback car model
+        // Procedural fallback car model + Ferrari GLTF load
         this.proceduralMesh = this._createCarModel();
         this.mesh.add(this.proceduralMesh);
-
         this._loadFerrariModel();
     }
 
+    // Telemetry Helpers for HUD
+    getSpeedKmh() { return Math.round(Math.abs(this.vLong * 3.6)); }
+    getRpm() { return (this.acceleratingSystem.engineRpm - 900) / (9000 - 900); }
+    getGear() {
+        if (this.acceleratingSystem.isReversing) return 'R';
+        if (Math.abs(this.vLong) < 0.2) return 'N';
+        return this.acceleratingSystem.gearIndex + 1;
+    }
+    get isNitro() { return this.acceleratingSystem.isNitro; }
+    get steerAngle() { return this.turningSystem.steerAngle; }
+    get currentSteer() { return this.turningSystem.currentSteer; }
+
     /* ------------------------------------------------
-       CAR LIGHTING SYSTEM SETUP (Clean, Photorealistic)
+       CAR LIGHTING SYSTEM SETUP
        ------------------------------------------------ */
     _initLightingSystem() {
         this.lightsGroup = new THREE.Group();
@@ -58,7 +90,7 @@ export class Vehicle {
         this.blinkerTimer = 0;
         this.blinkerState = false;
 
-        // ---- 1. Headlights (Photorealistic SpotLights) ----
+        // Headlights (SpotLights)
         this.headlightSpots = [];
         const hlPos = [-0.70, 0.70];
         hlPos.forEach((x) => {
@@ -74,7 +106,7 @@ export class Vehicle {
             this.headlightSpots.push(spot);
         });
 
-        // ---- 2. Rear Brake & Taillight Ground Projection ----
+        // Rear Brake Light Spot
         this.rearBrakeSpot = new THREE.SpotLight(0xff1100, 0, 15, Math.PI / 3, 0.7, 1.2);
         this.rearBrakeSpot.position.set(0, 0.3, 2.3);
         const rearTarget = new THREE.Object3D();
@@ -83,12 +115,12 @@ export class Vehicle {
         this.rearBrakeSpot.target = rearTarget;
         this.lightsGroup.add(this.rearBrakeSpot);
 
-        // ---- 3. Reverse Light Point ----
+        // Reverse Light Point
         this.reverseLightPoint = new THREE.PointLight(0xffffff, 0, 8);
         this.reverseLightPoint.position.set(0, 0.5, 2.4);
         this.lightsGroup.add(this.reverseLightPoint);
 
-        // ---- 4. Underglow Neon System ----
+        // Underglow Neon
         const ugMat = new THREE.MeshStandardMaterial({
             color: 0x0088ff,
             emissive: 0x0088ff,
@@ -102,7 +134,6 @@ export class Vehicle {
         this.underGlowMesh.rotation.x = -Math.PI / 2;
         this.underGlowMesh.position.y = 0.03;
         this.lightsGroup.add(this.underGlowMesh);
-        this.underGlowMat = ugMat;
 
         this.underLight = new THREE.PointLight(0x0088ff, 2.0, 6.0);
         this.underLight.position.set(0, 0.15, 0);
@@ -110,56 +141,156 @@ export class Vehicle {
     }
 
     /* ------------------------------------------------
-       CAR MODEL (procedural fallback)
+       DYNAMIC TIRE SMOKE & SKID MARKS SYSTEM
+       ------------------------------------------------ */
+    _initParticleEffects() {
+        const count = 160;
+        const geo = new THREE.BufferGeometry();
+        const pos = new Float32Array(count * 3);
+        for (let i = 0; i < count; i++) {
+            pos[i * 3] = 0; pos[i * 3 + 1] = -100; pos[i * 3 + 2] = 0;
+        }
+        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+
+        const canvas = document.createElement('canvas');
+        canvas.width = 64; canvas.height = 64;
+        const ctx = canvas.getContext('2d');
+        const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 30);
+        grad.addColorStop(0, 'rgba(240, 245, 255, 0.7)');
+        grad.addColorStop(0.35, 'rgba(210, 225, 245, 0.35)');
+        grad.addColorStop(1, 'rgba(160, 180, 210, 0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 64, 64);
+
+        const smokeMat = new THREE.PointsMaterial({
+            size: 2.8,
+            map: new THREE.CanvasTexture(canvas),
+            transparent: true,
+            opacity: 0.35,
+            depthWrite: false,
+            blending: THREE.NormalBlending,
+        });
+
+        this.smokeParticles = new THREE.Points(geo, smokeMat);
+        this.scene.add(this.smokeParticles);
+
+        this.smokeData = Array.from({ length: count }, () => ({
+            vx: 0, vy: 0, vz: 0, life: 0, maxLife: 1.0, opacity: 0
+        }));
+        this.nextSmokeIdx = 0;
+
+        this.skidMarks = [];
+        this.maxSkidMarks = 120;
+        this.skidGeoGroup = new THREE.Group();
+        this.scene.add(this.skidGeoGroup);
+        this.skidMat = new THREE.MeshBasicMaterial({
+            color: 0x111115,
+            transparent: true,
+            opacity: 0.55,
+            depthWrite: false,
+            side: THREE.DoubleSide
+        });
+    }
+
+    _emitSmoke(x, z, intensity) {
+        const data = this.smokeData[this.nextSmokeIdx];
+        const pos = this.smokeParticles.geometry.attributes.position.array;
+        const idx = this.nextSmokeIdx * 3;
+
+        pos[idx] = x + (Math.random() - 0.5) * 0.3;
+        pos[idx + 1] = 0.15 + Math.random() * 0.2;
+        pos[idx + 2] = z + (Math.random() - 0.5) * 0.3;
+
+        data.vx = (Math.random() - 0.5) * 1.8;
+        data.vy = 1.0 + Math.random() * 1.6;
+        data.vz = (Math.random() - 0.5) * 1.8;
+        data.life = 0;
+        data.maxLife = 0.5 + Math.random() * 0.5;
+        data.opacity = 0.4 * intensity;
+
+        this.nextSmokeIdx = (this.nextSmokeIdx + 1) % this.smokeData.length;
+    }
+
+    _addSkidMark(x, z, heading, width = 0.28) {
+        if (this.skidMarks.length >= this.maxSkidMarks) {
+            const old = this.skidMarks.shift();
+            if (old.parent) old.parent.remove(old);
+            if (old.geometry) old.geometry.dispose();
+        }
+
+        const geo = new THREE.PlaneGeometry(width, 0.6);
+        const mesh = new THREE.Mesh(geo, this.skidMat);
+        mesh.rotation.x = -Math.PI / 2;
+        mesh.rotation.z = heading;
+        mesh.position.set(x, 0.02, z);
+        this.skidGeoGroup.add(mesh);
+        this.skidMarks.push(mesh);
+    }
+
+    _updateParticles(dt, isSliding, isBurnout, speed) {
+        if (isSliding || isBurnout) {
+            const sinH = Math.sin(this.heading);
+            const cosH = Math.cos(this.heading);
+            const rlX = this.mesh.position.x - sinH * (-1.35) + cosH * (-0.85);
+            const rlZ = this.mesh.position.z - cosH * (-1.35) - sinH * (-0.85);
+            const rrX = this.mesh.position.x - sinH * (-1.35) + cosH * (0.85);
+            const rrZ = this.mesh.position.z - cosH * (-1.35) - sinH * (0.85);
+
+            const intensity = isBurnout ? 1.0 : (isSliding ? 0.75 : 0.4);
+            this._emitSmoke(rlX, rlZ, intensity);
+            this._emitSmoke(rrX, rrZ, intensity);
+
+            if (speed > 3.0 && Math.random() < 0.6) {
+                this._addSkidMark(rlX, rlZ, this.heading);
+                this._addSkidMark(rrX, rrZ, this.heading);
+            }
+        }
+
+        if (!this.smokeParticles) return;
+        const pos = this.smokeParticles.geometry.attributes.position.array;
+        for (let i = 0; i < this.smokeData.length; i++) {
+            const d = this.smokeData[i];
+            if (d.opacity > 0.001) {
+                d.life += dt;
+                if (d.life >= d.maxLife) {
+                    d.opacity = 0;
+                    pos[i * 3 + 1] = -100;
+                } else {
+                    const progress = d.life / d.maxLife;
+                    pos[i * 3] += d.vx * dt;
+                    pos[i * 3 + 1] += d.vy * dt;
+                    pos[i * 3 + 2] += d.vz * dt;
+                    d.opacity = (1.0 - progress) * 0.35;
+                }
+            }
+        }
+        this.smokeParticles.geometry.attributes.position.needsUpdate = true;
+    }
+
+    /* ------------------------------------------------
+       PROCEDURAL CAR MODEL FALLBACK & GLTF LOADER
        ------------------------------------------------ */
     _createCarModel() {
         const group = new THREE.Group();
+        const bodyMat = new THREE.MeshStandardMaterial({ color: 0xff2200, metalness: 0.95, roughness: 0.06 });
 
-        // Body (Wet glossy coat)
-        const bodyMat = new THREE.MeshStandardMaterial({
-            color: 0xff2200,
-            metalness: 0.95,
-            roughness: 0.06,
-        });
-
-        // Main body
         const body = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.5, 4.8), bodyMat);
         body.position.y = 0.55;
         body.castShadow = true;
         group.add(body);
 
-        // Hood
         const hood = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.2, 1.5), bodyMat);
         hood.position.set(0, 0.9, -1.2);
         hood.rotation.x = 0.15;
         hood.castShadow = true;
         group.add(hood);
 
-        // Cabin
-        const cabinMat = new THREE.MeshStandardMaterial({
-            color: 0x111122,
-            metalness: 1.0,
-            roughness: 0.05,
-            transparent: true,
-            opacity: 0.7,
-        });
+        const cabinMat = new THREE.MeshStandardMaterial({ color: 0x111122, metalness: 1.0, roughness: 0.05, transparent: true, opacity: 0.7 });
         const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.55, 1.8), cabinMat);
         cabin.position.set(0, 1.07, 0.2);
         cabin.castShadow = true;
         group.add(cabin);
 
-        // Rear spoiler
-        const spoiler = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.08, 0.3), bodyMat);
-        spoiler.position.set(0, 1.15, 2.1);
-        group.add(spoiler);
-        const legGeo = new THREE.BoxGeometry(0.08, 0.3, 0.08);
-        [[-0.8, 1.0, 2.1], [0.8, 1.0, 2.1]].forEach(p => {
-            const leg = new THREE.Mesh(legGeo, bodyMat);
-            leg.position.set(...p);
-            group.add(leg);
-        });
-
-        // Wheels
         const wheelGeo = new THREE.CylinderGeometry(0.38, 0.38, 0.25, 16);
         const wheelMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.5, metalness: 0.4 });
         const rimGeo = new THREE.CylinderGeometry(0.25, 0.25, 0.26, 8);
@@ -185,26 +316,6 @@ export class Vehicle {
             if (front) this.frontWheels.push(wg);
         });
 
-        // Integrated Procedural Headlight/Taillight Materials
-        const hlMat = new THREE.MeshStandardMaterial({
-            color: 0xffffff, emissive: 0xffffcc, emissiveIntensity: 1.5,
-        });
-        [-0.75, 0.75].forEach(x => {
-            const hl = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), hlMat);
-            hl.position.set(x, 0.6, -2.4);
-            group.add(hl);
-        });
-
-        const tlMat = new THREE.MeshStandardMaterial({
-            color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 1.2,
-        });
-        [-0.8, 0.8].forEach(x => {
-            const tl = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.12, 0.05), tlMat);
-            tl.position.set(x, 0.55, 2.4);
-            group.add(tl);
-        });
-
-        this.brakeLightMat = tlMat;
         this.proceduralBodyGroup = group;
         return group;
     }
@@ -227,89 +338,27 @@ export class Vehicle {
                         child.castShadow = true;
                         child.receiveShadow = true;
 
-                        // Tone down metallic & roughness specular glare across GLTF materials
-                        if (child.material) {
-                            const name = child.name ? child.name.toLowerCase() : '';
-                            if (name.includes('glass') || name.includes('window')) {
-                                child.material = new THREE.MeshPhysicalMaterial({
-                                    color: 0x0a1020,
-                                    metalness: 0.1,
-                                    roughness: 0.2,
-                                    transmission: 0.8,
-                                    transparent: true,
-                                    opacity: 0.65,
-                                    clearcoat: 0.5,
-                                    clearcoatRoughness: 0.1,
-                                });
-                            } else if (name !== 'body' && name !== 'lights' && name !== 'lights_red' && name !== 'leds') {
-                                if (child.material.metalness !== undefined) {
-                                    child.material.metalness = Math.min(child.material.metalness, 0.4);
-                                }
-                                if (child.material.roughness !== undefined) {
-                                    child.material.roughness = Math.max(child.material.roughness, 0.25);
-                                }
-                            }
-                        }
-
-                        // Bind materials for light nodes in GLTF
                         if (child.name === 'lights') {
-                            this.gltfHeadlightMat = new THREE.MeshStandardMaterial({
-                                color: 0xffffff,
-                                emissive: 0xffffff,
-                                emissiveIntensity: 1.2,
-                                metalness: 0.5,
-                                roughness: 0.2,
-                            });
+                            this.gltfHeadlightMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 1.2 });
                             child.material = this.gltfHeadlightMat;
                         }
                         if (child.name === 'lights_red') {
-                            this.gltfTaillightMat = new THREE.MeshStandardMaterial({
-                                color: 0xff0000,
-                                emissive: 0xff0000,
-                                emissiveIntensity: 0.8,
-                                roughness: 0.2,
-                            });
+                            this.gltfTaillightMat = new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 0.8 });
                             child.material = this.gltfTaillightMat;
-                        }
-                        if (child.name === 'leds') {
-                            this.gltfLedMat = new THREE.MeshStandardMaterial({
-                                color: 0xffffff,
-                                emissive: 0x99ccff,
-                                emissiveIntensity: 1.0,
-                            });
-                            child.material = this.gltfLedMat;
                         }
                     }
                 });
 
-                // Find Ferrari wheel meshes
                 const wheelFL = carModel.getObjectByName('wheel_fl');
                 const wheelFR = carModel.getObjectByName('wheel_fr');
                 const wheelRL = carModel.getObjectByName('wheel_rl');
                 const wheelRR = carModel.getObjectByName('wheel_rr');
-
                 if (wheelFL && wheelFR && wheelRL && wheelRR) {
                     this.gltfWheels = [wheelFL, wheelFR, wheelRL, wheelRR];
                     this.gltfFrontWheels = [wheelFL, wheelFR];
                 }
 
-                // Apply glossy Ferrari Red body paint with balanced moonlight sheen
-                const bodyMesh = carModel.getObjectByName('body');
-                if (bodyMesh) {
-                    bodyMesh.material = new THREE.MeshPhysicalMaterial({
-                        color: 0xd11a2a,
-                        metalness: 0.45,
-                        roughness: 0.25,
-                        clearcoat: 0.7,
-                        clearcoatRoughness: 0.15,
-                    });
-                }
-
-                // Hide procedural car body fallback
-                if (this.proceduralMesh) {
-                    this.proceduralMesh.visible = false;
-                }
-
+                if (this.proceduralMesh) this.proceduralMesh.visible = false;
                 this.mesh.add(carModel);
                 this.isGltfLoaded = true;
             }, undefined, (err) => {
@@ -321,120 +370,48 @@ export class Vehicle {
     }
 
     /* ------------------------------------------------
-       PHYSICS & LIGHTING UPDATE
+       MAIN UNIFIED UPDATE LOOP
        ------------------------------------------------ */
-    update(dt, input) {
-        // Sensitivity scale (Right Ctrl held = 25% precision, Right Shift held = 50% precision)
-        let sensMult = 1.0;
-        if (input.precision25) {
-            sensMult = 0.25;
-        } else if (input.precision) {
-            sensMult = 0.5;
-        }
+    update(dt, input, weather) {
+        dt = Math.min(dt, 1 / 30);
 
-        // Dynamic gear acceleration scaling across 6 gears (0-300 km/h)
-        const kmh = Math.abs(this.speed * 3.6);
-        let gearMult = 1.25;
-        if (kmh >= 250) gearMult = 0.35;      // Gear 6 (250-300 km/h)
-        else if (kmh >= 200) gearMult = 0.50; // Gear 5 (200-250 km/h)
-        else if (kmh >= 150) gearMult = 0.70; // Gear 4 (150-200 km/h)
-        else if (kmh >= 100) gearMult = 0.88; // Gear 3 (100-150 km/h)
-        else if (kmh >= 50)  gearMult = 1.05; // Gear 2 (50-100 km/h)
-        else                 gearMult = 1.25; // Gear 1 (0-50 km/h)
+        // 1. Update Modular Subsystems
+        this.acceleratingSystem.update(dt, input, weather);
+        this.turningSystem.update(dt, input);
+        this.driftingSystem.update(dt, input, weather);
+        this.maneuversSystem.update(dt, input, weather);
 
-        // Nitro
-        this.isNitro = input.nitro && this.speed > 3;
-        const boost = this.isNitro ? this.nitroBoost : 1;
+        // 2. Integrated 3D World Movement
+        const sinH = Math.sin(this.heading);
+        const cosH = Math.cos(this.heading);
+        const vxWorld = -sinH * this.vLong + cosH * this.vLat;
+        const vzWorld = -cosH * this.vLong - sinH * this.vLat;
 
-        // Acceleration / brake with sensitivity scaling
-        const accelRate = this.baseAcceleration * gearMult * boost * sensMult;
-        const brakeRate = this.brakeForce * sensMult;
+        this.mesh.position.x += vxWorld * dt;
+        this.mesh.position.z += vzWorld * dt;
 
-        if (input.forward) {
-            if (this.speed < -0.5) {
-                // Apply brakes when reversing
-                this.speed += brakeRate * dt;
-            } else {
-                this.speed += accelRate * dt;
-            }
-        }
-        if (input.backward) {
-            if (this.speed > 0.5) {
-                // Apply brakes when moving forward
-                this.speed -= brakeRate * dt;
-            } else {
-                // Accelerate in reverse
-                this.speed -= accelRate * 0.75 * dt;
-            }
-        }
+        // 3. Chassis Suspension Physics (Pitch, Roll, Heave)
+        const targetPitch = -(this.acceleratingSystem.aLong / 9.81) * 0.045;
+        const targetRoll = (this.turningSystem.aLat / 9.81) * 0.075;
+        const roadBumpNoise = Math.sin(performance.now() * 0.018) * 0.006 * Math.min(Math.abs(this.vLong) / 25, 1.0);
+        const targetHeave = -(Math.abs(this.acceleratingSystem.aLong) / 9.81) * 0.012 + roadBumpNoise;
 
-        // Clamp to top speed 300 km/h (or ~330 km/h with nitro)
-        const cap = this.isNitro ? this.maxSpeed * 1.1 : this.maxSpeed;
-        this.speed = Math.max(-this.reverseMaxSpeed, Math.min(this.speed, cap));
-
-        // Drag friction
-        if (!input.forward && !input.backward) this.speed *= this.drag;
-
-        // Dead zone for near-zero speed
-        if (Math.abs(this.speed) < 0.15 && !input.forward && !input.backward) {
-            this.speed = 0;
-        }
-
-        // Steering input smoothing
-        const targetSteer = input.left ? 1 : input.right ? -1 : 0;
-        this.currentSteer = THREE.MathUtils.lerp(this.currentSteer, targetSteer, dt * 12.0);
-        this.steerAngle = this.currentSteer;
-
-        // Turning physics calculation (works at low speed, high speed, and standstill roll)
-        const speedFactor = Math.min(1.0, Math.abs(this.speed) / 4.0); // allows turning even at low speed
-        const isMoving = Math.abs(this.speed) > 0.15 || input.forward || input.backward;
-
-        if (isMoving && Math.abs(this.currentSteer) > 0.01) {
-            const highSpeedDamp = 1.0 - (Math.abs(this.speed) / this.maxSpeed) * 0.35;
-            const handbrakeTurnBoost = input.handbrake ? 1.6 : 1.0;
-            const turnRate = this.turnSpeed * sensMult * Math.max(speedFactor, 0.45) * highSpeedDamp * handbrakeTurnBoost;
-            const dir = this.speed >= 0 ? 1 : -1;
-            this.heading += this.currentSteer * turnRate * dir * dt;
-        }
-
-        // Handbrake & Drift lateral slip angle physics
-        let grip = 0.88;
-        if (input.handbrake && Math.abs(this.speed) > 3) {
-            grip = 0.25; // Drift mode: low side grip
-            this.speed *= (1.0 - 0.4 * dt); // Moderate speed bleed during drift
-        }
-
-        // Lateral acceleration / drift side-velocity
-        const latForce = -Math.sin(this.currentSteer * 0.5) * this.speed * 0.45;
-        this.lateralVelocity = THREE.MathUtils.lerp(this.lateralVelocity, latForce, dt * (10.0 * grip));
-
-        // World movement update: combines forward velocity + lateral drift displacement
-        const forwardX = -Math.sin(this.heading) * this.speed;
-        const forwardZ = -Math.cos(this.heading) * this.speed;
-        const rightX = Math.cos(this.heading) * this.lateralVelocity;
-        const rightZ = -Math.sin(this.heading) * this.lateralVelocity;
-
-        this.mesh.position.x += (forwardX + rightX) * dt;
-        this.mesh.position.z += (forwardZ + rightZ) * dt;
-
-        // Visual Chassis Body Dynamics (Roll on cornering & Pitch on accel/brake)
-        const targetRoll = -this.currentSteer * Math.min(Math.abs(this.speed) / 30.0, 1.0) * 0.08;
-        const accelState = input.forward ? -1 : (input.backward && this.speed > 1) ? 1.5 : 0;
-        const targetPitch = accelState * (Math.abs(this.speed) / 60.0) * 0.035;
-
-        this.rollAngle = THREE.MathUtils.lerp(this.rollAngle, targetRoll, dt * 8.0);
-        this.pitchAngle = THREE.MathUtils.lerp(this.pitchAngle, targetPitch, dt * 8.0);
+        this.pitchVel += (targetPitch - this.pitchAngle) * 180.0 * dt - this.pitchVel * 12.0 * dt;
+        this.pitchAngle += this.pitchVel * dt;
+        this.rollVel += (targetRoll - this.rollAngle) * 180.0 * dt - this.rollVel * 12.0 * dt;
+        this.rollAngle += this.rollVel * dt;
+        this.heaveVel += (targetHeave - this.heaveDisplacement) * 200.0 * dt - this.heaveVel * 14.0 * dt;
+        this.heaveDisplacement += this.heaveVel * dt;
 
         this.mesh.rotation.y = this.heading;
         this.mesh.rotation.z = this.rollAngle;
         this.mesh.rotation.x = this.pitchAngle;
+        this.mesh.position.y = Math.max(-0.05, this.heaveDisplacement);
 
-        // Wheel spin animation
-        const spin = -this.speed * dt * 3;
+        // 4. Wheel Animations & Steering Angle
+        const spin = -this.vLong * dt * 3.2;
         if (this.isGltfLoaded && this.gltfWheels) {
-            this.gltfWheels.forEach(w => {
-                w.rotation.x += spin;
-            });
+            this.gltfWheels.forEach(w => { w.rotation.x += spin; });
         } else {
             this.wheels.forEach(w => {
                 if (w.children[0]) w.children[0].rotation.x += spin;
@@ -442,127 +419,56 @@ export class Vehicle {
             });
         }
 
-        // Front-wheel steer visual turning animation
-        const maxSteerVisualAngle = 0.45 * sensMult;
-        const visualSteerAngle = this.currentSteer * maxSteerVisualAngle;
+        const visualSteer = this.turningSystem.currentSteer * 0.85;
         if (this.isGltfLoaded && this.gltfFrontWheels) {
-            this.gltfFrontWheels.forEach(w => (w.rotation.y = visualSteerAngle));
+            this.gltfFrontWheels.forEach(w => (w.rotation.y = visualSteer));
         } else {
-            this.frontWheels.forEach(w => (w.rotation.y = visualSteerAngle));
+            this.frontWheels.forEach(w => (w.rotation.y = visualSteer));
         }
 
-        // Dynamic Car Lighting Update
+        // 5. Particle Effects & Lighting Updates
+        const isBurnout = input.forward && Math.abs(this.vLong) < 3.0 && (input.backward || input.handbrake);
+        const isSliding = this.driftingSystem.isDrifting || input.handbrake;
+        this._updateParticles(dt, isSliding, isBurnout, Math.abs(this.vLong));
+
         this._updateLights(dt, input);
 
-        // Soft boundary (keep car in playable area)
-        if (Math.abs(this.mesh.position.x) > 50) {
-            this.mesh.position.x *= 0.995;
-            this.speed *= 0.98;
+        // 6. Playable boundary constraint relative to curved road center
+        const roadPt = getRoadPoint(this.mesh.position.z);
+        const offsetFromRoad = this.mesh.position.x - roadPt.x;
+        if (Math.abs(offsetFromRoad) > 60) {
+            this.mesh.position.x = roadPt.x + Math.sign(offsetFromRoad) * 60;
+            this.vLong *= 0.98;
         }
     }
 
     _updateLights(dt, input) {
-        // 1. Headlights (0: OFF, 1: LOW BEAM, 2: HIGH BEAM)
         const mode = input.headlightMode !== undefined ? input.headlightMode : 1;
-        let spotIntensity = 0;
-        let spotDistance = 60;
-        let spotAngle = Math.PI / 5.5;
-
-        if (mode === 1) { // Low Beam
-            spotIntensity = 8.0;
-            spotDistance = 60;
-            spotAngle = Math.PI / 5.5;
-        } else if (mode === 2) { // High Beam
-            spotIntensity = 18.0;
-            spotDistance = 120;
-            spotAngle = Math.PI / 7;
-        }
+        const spotIntensity = mode === 2 ? 18.0 : (mode === 1 ? 8.0 : 0);
+        const spotDistance = mode === 2 ? 120 : 60;
 
         this.headlightSpots.forEach(s => {
             s.intensity = spotIntensity;
             s.distance = spotDistance;
-            s.angle = spotAngle;
         });
 
         if (this.gltfHeadlightMat) {
             this.gltfHeadlightMat.emissiveIntensity = mode === 2 ? 2.5 : (mode === 1 ? 1.2 : 0.05);
         }
-        if (this.gltfLedMat) {
-            this.gltfLedMat.emissiveIntensity = mode > 0 ? 1.0 : 0.1;
-        }
 
-        // 2. Taillights & Brake Lights
-        const isBraking = (input.backward && this.speed > 0.5) || input.handbrake;
-        const baseTailIntensity = mode > 0 ? 0.8 : 0.2;
-        const brakeIntensity = isBraking ? 3.5 : baseTailIntensity;
-
+        const isBraking = (input.backward && this.vLong > 0.5) || input.handbrake;
         this.rearBrakeSpot.intensity = isBraking ? 6.0 : (mode > 0 ? 0.8 : 0);
-
         if (this.gltfTaillightMat) {
-            this.gltfTaillightMat.emissiveIntensity = brakeIntensity;
-        }
-        if (this.brakeLightMat) {
-            this.brakeLightMat.emissiveIntensity = brakeIntensity;
+            this.gltfTaillightMat.emissiveIntensity = isBraking ? 3.5 : (mode > 0 ? 0.8 : 0.2);
         }
 
-        // 3. Reverse Lights
-        const isReversing = (this.speed < -0.1) || (input.backward && Math.abs(this.speed) < 0.5);
+        const isReversing = (this.vLong < -0.1) || (input.backward && Math.abs(this.vLong) < 0.5);
         this.reverseLightPoint.intensity = isReversing ? 2.5 : 0;
 
-        // 4. Turn Signals & Hazard Flashers
         this.blinkerTimer += dt;
         if (this.blinkerTimer >= 0.35) {
             this.blinkerTimer = 0;
             this.blinkerState = !this.blinkerState;
         }
-
-        // 5. Underglow Neon
-        const ugActive = input.underglow !== undefined ? input.underglow : true;
-        if (ugActive) {
-            this.underGlowMesh.visible = true;
-            if (this.isNitro) {
-                this.underGlowMat.emissive.setHex(0xff4400);
-                this.underGlowMat.emissiveIntensity = 2.0;
-                this.underGlowMat.opacity = 0.35;
-                this.underLight.color.setHex(0xff4400);
-                this.underLight.intensity = 4.5;
-            } else {
-                this.underGlowMat.emissive.setHex(0x0088ff);
-                this.underGlowMat.emissiveIntensity = 1.0;
-                this.underGlowMat.opacity = 0.2;
-                this.underLight.color.setHex(0x0088ff);
-                this.underLight.intensity = 2.0;
-            }
-        } else {
-            this.underGlowMesh.visible = false;
-            this.underLight.intensity = 0;
-        }
-    }
-
-    /** Calculates current gear (N, R, 1-6) */
-    getGear() {
-        if (Math.abs(this.speed) < 0.2) return 'N';
-        if (this.speed < 0) return 'R';
-        const kmh = this.getSpeedKmh();
-        if (kmh < 50) return 1;
-        if (kmh < 100) return 2;
-        if (kmh < 150) return 3;
-        if (kmh < 200) return 4;
-        if (kmh < 250) return 5;
-        return 6;
-    }
-
-    /** Calculates RPM (0.0 to 1.0) normalized for current 6-gear range */
-    getRpm() {
-        const kmh = this.getSpeedKmh();
-        if (kmh < 0.5) return 0;
-        const gearSpeed = kmh % 50;
-        const minRpm = 0.25;
-        return minRpm + (1 - minRpm) * (gearSpeed / 50);
-    }
-
-    /** Speed in km/h for the HUD */
-    getSpeedKmh() {
-        return Math.abs(Math.round(this.speed * 3.6));
     }
 }

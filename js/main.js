@@ -3,19 +3,23 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { Lensflare, LensflareElement } from 'three/addons/objects/Lensflare.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
 
 import { Vehicle } from './vehicle.js';
 import { World } from './world.js';
 import { InputManager } from './input.js';
 import { WeatherSystem } from './weather.js';
+import { CloudSystem } from './clouds.js';
 import { createMotionBlurPass } from './motionBlurShader.js';
 
 /* =============================================
-   SCENE (Moonlit Urban Night Atmosphere)
+   SCENE (Moody Night Fog & Atmosphere)
    ============================================= */
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0c1628);
-scene.fog = new THREE.FogExp2(0x0c1628, 0.0022);
+const fogColor = new THREE.Color(0x0a101d);
+scene.background = fogColor;
+scene.fog = new THREE.FogExp2(0x0a101d, 0.0055); // Rich volumetric atmospheric night fog
 
 /* =============================================
    CAMERA (Clean Chase View)
@@ -29,7 +33,7 @@ camera.position.set(0, 4, 10);
    RENDERER
    ============================================= */
 const renderer = new THREE.WebGLRenderer({
-    antialias: false,
+    antialias: true,
     powerPreference: 'high-performance',
     precision: 'mediump',
     stencil: false,
@@ -38,11 +42,81 @@ const renderer = new THREE.WebGLRenderer({
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Ultra-smooth soft shadows
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.08;
+renderer.toneMappingExposure = 1.18; // Balanced HDR exposure curve
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
+
+/* =============================================
+   HDR ENVIRONMENT MAP LOADING (Night HDRI)
+   ============================================= */
+function createHDRNightEnvironment(renderer) {
+    const pmremGenerator = new THREE.PMREMGenerator(renderer);
+    pmremGenerator.compileEquirectangularShader();
+
+    const envScene = new THREE.Scene();
+    
+    const skyGeo = new THREE.SphereGeometry(100, 32, 32);
+    const skyMat = new THREE.ShaderMaterial({
+        uniforms: {
+            topColor: { value: new THREE.Color(0x0a1426) },
+            horizonColor: { value: new THREE.Color(0x2a3e5c) },
+            sodiumGlow: { value: new THREE.Color(0xff8822) },
+        },
+        vertexShader: `
+            varying vec3 vWorldPosition;
+            void main() {
+                vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+                vWorldPosition = worldPosition.xyz;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `,
+        fragmentShader: `
+            uniform vec3 topColor;
+            uniform vec3 horizonColor;
+            uniform vec3 sodiumGlow;
+            varying vec3 vWorldPosition;
+            void main() {
+                vec3 norm = normalize(vWorldPosition);
+                float h = norm.y;
+                vec3 col = mix(horizonColor, topColor, max(h, 0.0));
+                float sodiumBand = smoothstep(0.3, -0.1, abs(h - 0.05));
+                col += sodiumGlow * sodiumBand * 0.45;
+                gl_FragColor = vec4(col, 1.0);
+            }
+        `,
+        side: THREE.BackSide,
+    });
+    envScene.add(new THREE.Mesh(skyGeo, skyMat));
+
+    const envMoon = new THREE.DirectionalLight(0xdce8ff, 4.0);
+    envMoon.position.set(15, 65, -160);
+    envScene.add(envMoon);
+
+    const envLight1 = new THREE.PointLight(0xff7711, 8.0, 50);
+    envLight1.position.set(-15, 8, 20);
+    envScene.add(envLight1);
+
+    const envLight2 = new THREE.PointLight(0xff7711, 8.0, 50);
+    envLight2.position.set(15, 8, -20);
+    envScene.add(envLight2);
+
+    const envRt = pmremGenerator.fromScene(envScene);
+    pmremGenerator.dispose();
+    return envRt.texture;
+}
+
+// Load Night Sky HDRI environment map using EXRLoader
+const exrLoader = new EXRLoader();
+exrLoader.load('assets/hdr/night time/NightSkyHDRI003_4K_HDR.exr', (hdrTexture) => {
+    hdrTexture.mapping = THREE.EquirectangularReflectionMapping;
+    scene.environment = hdrTexture;
+    console.log('Night EXR HDRI loaded successfully');
+}, undefined, (err) => {
+    console.warn('EXRLoader failed, using procedural night environment fallback:', err);
+    scene.environment = createHDRNightEnvironment(renderer);
+});
 
 /* =============================================
    POST-PROCESSING (Bloom & Speed Motion Blur)
@@ -62,19 +136,22 @@ const motionBlurPass = createMotionBlurPass();
 composer.addPass(motionBlurPass);
 
 /* =============================================
-   LIGHTING (Atmospheric Silver Moonlight & Ambient Sky)
+   LIGHTING (Moody Lowered Moonlight & Warm Sodium Ambient Sky)
    ============================================= */
-scene.add(new THREE.AmbientLight(0x556d90, 1.45)); // Soft ambient moonlight fill
-scene.add(new THREE.HemisphereLight(0x7095c5, 0x222a38, 1.35)); // Sky/Ground moonlight balance
+scene.add(new THREE.AmbientLight(0x445577, 0.45)); // Soft lowered ambient moonlight fill
+scene.add(new THREE.AmbientLight(0xff9933, 0.35)); // Warm sodium city light ambient fill
+scene.add(new THREE.HemisphereLight(0x4c607a, 0x18202d, 0.50)); // Sky/Ground moonlight balance
 
-const moon = new THREE.DirectionalLight(0xd5e5ff, 1.05); // Balanced directional moonlight (no harsh glare)
-moon.position.set(15, 65, -160);
+const moon = new THREE.DirectionalLight(0xb8d0f5, 0.38); // Lowered directional moonlight
+moon.position.set(15, 30, -180);
 moon.castShadow = true;
-moon.shadow.mapSize.set(1024, 1024);
-moon.shadow.camera.left = -80;
-moon.shadow.camera.right = 80;
-moon.shadow.camera.top = 80;
-moon.shadow.camera.bottom = -80;
+moon.shadow.mapSize.set(1024, 1024); // Fast, optimized crisp shadow map
+moon.shadow.bias = -0.0001; // Prevent shadow acne
+moon.shadow.normalBias = 0.03; // Smooth surface shadow contact
+moon.shadow.camera.left = -70;
+moon.shadow.camera.right = 70;
+moon.shadow.camera.top = 70;
+moon.shadow.camera.bottom = -70;
 moon.shadow.camera.near = 10;
 moon.shadow.camera.far = 400;
 scene.add(moon);
@@ -228,16 +305,16 @@ const moonMat = new THREE.MeshBasicMaterial({
     color: 0xffffff,
 });
 const moonMesh = new THREE.Mesh(moonGeo, moonMat);
-moonMesh.position.set(15, 65, -160);
+moonMesh.position.set(15, 30, -180);
 scene.add(moonMesh);
 
 const haloCanvas = document.createElement('canvas');
 haloCanvas.width = 256; haloCanvas.height = 256;
 const hCtx = haloCanvas.getContext('2d');
 const hGrad = hCtx.createRadialGradient(128, 128, 10, 128, 128, 120);
-hGrad.addColorStop(0, 'rgba(210, 230, 255, 0.9)');
-hGrad.addColorStop(0.3, 'rgba(160, 200, 255, 0.5)');
-hGrad.addColorStop(0.7, 'rgba(110, 160, 245, 0.18)');
+hGrad.addColorStop(0, 'rgba(180, 205, 240, 0.7)');
+hGrad.addColorStop(0.3, 'rgba(130, 170, 230, 0.35)');
+hGrad.addColorStop(0.7, 'rgba(80, 120, 190, 0.12)');
 hGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
 hCtx.fillStyle = hGrad;
 hCtx.fillRect(0, 0, 256, 256);
@@ -246,20 +323,20 @@ const haloMat = new THREE.SpriteMaterial({
     map: new THREE.CanvasTexture(haloCanvas),
     blending: THREE.AdditiveBlending,
     transparent: true,
-    opacity: 0.9,
+    opacity: 0.6,
 });
 const moonHalo = new THREE.Sprite(haloMat);
-moonHalo.scale.set(130, 130, 1);
+moonHalo.scale.set(110, 110, 1);
 moonMesh.add(moonHalo);
 
 /* =============================================
-   SKY DOME (Bright Silver Moonlight Night Sky Shader)
+   SKY DOME (Moody Foggy Night Sky Shader)
    ============================================= */
 const skyGeo = new THREE.SphereGeometry(400, 32, 32);
 const skyMat = new THREE.ShaderMaterial({
     uniforms: {
-        topColor: { value: new THREE.Color(0x0a1426) },
-        bottomColor: { value: new THREE.Color(0x1e304a) }, // Silver-blue horizon glow
+        topColor: { value: new THREE.Color(0x060a14) },
+        bottomColor: { value: new THREE.Color(0x121a28) },
         offset: { value: 15 },
         exponent: { value: 0.45 },
     },
@@ -291,12 +368,15 @@ const sky = new THREE.Mesh(skyGeo, skyMat);
 scene.add(sky);
 
 /* =============================================
-   GAME OBJECTS & WEATHER SHADER
+   GAME OBJECTS, VOLUMETRIC CLOUDS & WEATHER SHADER
    ============================================= */
 const input = new InputManager();
 const vehicle = new Vehicle(scene);
 const world = new World(scene);
 world.init();
+
+// Volumetric Drifting Clouds System
+const cloudSystem = new CloudSystem(scene);
 
 // Driveclub Glass Refraction Rain & Wet Surface System
 const weather = new WeatherSystem(scene, vehicle, world, composer);
@@ -365,32 +445,32 @@ function updateCamera(dt) {
         mouseOrbitPitch *= Math.pow(0.01, dt);
     }
 
-    // Tight camera framing: fixed 5.8m distance, 2.2m height (no speed pull-back)
-    const dist = 5.8 + zoomOffset;
-    const height = 2.2 + mouseOrbitPitch * 3;
+    // Grounded, locked chase camera framing (5.4m distance, 1.85m eye height)
+    const dist = 5.4 + zoomOffset;
+    const height = 1.85 + mouseOrbitPitch * 2;
     const a = vehicle.heading + mouseOrbitYaw;
 
-    // Ideal camera position tightly behind car
+    // Ideal camera position anchored tightly behind vehicle
     camIdeal.set(
         vehicle.mesh.position.x + Math.sin(a) * dist,
-        vehicle.mesh.position.y + Math.max(1.0, height),
+        vehicle.mesh.position.y + height,
         vehicle.mesh.position.z + Math.cos(a) * dist,
     );
 
-    // Fast lerp rate (rate = 25) so camera tracks tightly at full speed without lagging behind
-    const s = 1 - Math.exp(-25 * dt);
+    // Instant/tight chase tracking (s = 1 - exp(-32 * dt))
+    const s = 1 - Math.exp(-32 * dt);
     camera.position.lerp(camIdeal, s);
 
-    // Look at target point ahead of car
+    // Look at target locked ahead of vehicle nose
     camTarget.set(
-        vehicle.mesh.position.x - Math.sin(vehicle.heading) * 3,
-        vehicle.mesh.position.y + 0.9,
-        vehicle.mesh.position.z - Math.cos(vehicle.heading) * 3,
+        vehicle.mesh.position.x - Math.sin(vehicle.heading) * 4.5,
+        vehicle.mesh.position.y + 0.95,
+        vehicle.mesh.position.z - Math.cos(vehicle.heading) * 4.5,
     );
     camLookAt.lerp(camTarget, s);
     camera.lookAt(camLookAt);
 
-    // Fixed FOV (60 deg) to prevent wide-angle camera push-back effect
+    // Fixed 60 deg FOV for stable, grounded perspective
     camera.fov = 60;
     camera.updateProjectionMatrix();
 
@@ -504,18 +584,25 @@ const elLoading = document.getElementById('loading-screen');
 const elHud = document.getElementById('hud');
 
 function startGame() {
+    if (elLoading.classList.contains('fade-out')) return;
     elLoading.classList.add('fade-out');
     elHud.style.display = 'block';
     window.focus();
-    setTimeout(() => { elHint.style.opacity = '0'; }, 8000);
+    setTimeout(() => { if (elHint) elHint.style.opacity = '0'; }, 8000);
     setTimeout(() => { elLoading.style.display = 'none'; }, 1200);
 }
 
-elStartBtn.addEventListener('click', startGame);
+if (elStartBtn) elStartBtn.addEventListener('click', startGame);
+if (elLoading) elLoading.addEventListener('click', startGame);
+window.addEventListener('keydown', () => {
+    if (elLoading && elLoading.style.display !== 'none' && !elLoading.classList.contains('fade-out')) {
+        startGame();
+    }
+});
 
 let loadPct = 0;
 const loadTimer = setInterval(() => {
-    loadPct += 8 + Math.random() * 15;
+    loadPct += 15 + Math.random() * 20;
     if (loadPct >= 100) {
         loadPct = 100;
         elLoaderFill.style.width = '100%';
@@ -525,48 +612,26 @@ const loadTimer = setInterval(() => {
         if (elLoaderBox) elLoaderBox.style.display = 'none';
         if (elStartBtn) elStartBtn.style.display = 'inline-block';
 
-        // Auto start after 1.5s if not clicked
+        // Auto start after 500ms if not clicked
         setTimeout(() => {
             if (elLoading.style.display !== 'none' && !elLoading.classList.contains('fade-out')) {
                 startGame();
             }
-        }, 1500);
+        }, 500);
     } else {
         elLoaderFill.style.width = `${loadPct}%`;
     }
-}, 100);
+}, 60);
 
 /* =============================================
-   RTX 3050 TURBO MODE & HIGH-PRECISION FPS COUNTER
+   FPS COUNTER
    ============================================= */
-let isTurboMode = true;
 let lastFrameTime = performance.now();
 let frameCount = 0;
 let fpsTimer = 0;
 
 const elFpsVal = document.getElementById('fps-val');
 const elFrameTimeVal = document.getElementById('frametime-val');
-const elTurboBtn = document.getElementById('turbo-toggle-btn');
-
-if (elTurboBtn) {
-    elTurboBtn.addEventListener('click', () => {
-        isTurboMode = !isTurboMode;
-        if (isTurboMode) {
-            elTurboBtn.className = 'turbo-btn active';
-            elTurboBtn.textContent = '⚡ RTX 3050 TURBO MODE: ON';
-            renderer.setPixelRatio(1.0);
-            renderer.shadowMap.enabled = false;
-            if (world.lightPool) world.lightPool.forEach(l => l.visible = false);
-        } else {
-            elTurboBtn.className = 'turbo-btn';
-            elTurboBtn.textContent = '✨ CINEMATIC MODE';
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
-            renderer.shadowMap.enabled = true;
-            renderer.shadowMap.autoUpdate = true;
-            if (world.lightPool) world.lightPool.forEach(l => l.visible = true);
-        }
-    });
-}
 
 /* =============================================
    GAME LOOP
@@ -594,17 +659,14 @@ function animate() {
 
     const dt = Math.min(clock.getDelta(), 0.05);
 
-    vehicle.update(dt, input);
+    vehicle.update(dt, input, weather);
     world.update(vehicle.mesh.position);
+    cloudSystem.update(dt, vehicle.mesh.position);
     weather.update(dt);
     updateCamera(dt);
     updateHUD();
 
-    if (isTurboMode) {
-        renderer.render(scene, camera);
-    } else {
-        composer.render();
-    }
+    composer.render();
 }
 animate();
 
