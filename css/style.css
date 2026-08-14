@@ -158,11 +158,12 @@ canvas {
     text-transform: uppercase;
 }
 
-/* Top-Left: Position & Time */
+/* Top-Left: Position & Time (Hidden) */
 #dc-top-left {
     position: absolute;
     top: 30px;
     left: 40px;
+    display: none !important;
 }
 
 #dc-pos {
@@ -182,6 +183,123 @@ canvas {
     color: #ffffff;
     margin-top: 4px;
     letter-spacing: 0.05em;
+}
+
+/* Performance HUD (Top Left, Small & Compact) */
+#fps-hud-panel {
+    position: absolute;
+    top: 20px;
+    left: 25px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    pointer-events: auto;
+    z-index: 20;
+}
+
+#fps-counter-badge {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #00ffaa;
+    background: rgba(0, 20, 15, 0.75);
+    border: 1px solid rgba(0, 255, 170, 0.35);
+    padding: 4px 9px;
+    border-radius: 4px;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 0 10px rgba(0, 255, 170, 0.2);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+#fps-counter-badge .fps-icon {
+    font-size: 0.78rem;
+    color: #ffcc00;
+}
+
+#fps-counter-badge .fps-unit {
+    font-size: 0.55rem;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+#fps-counter-badge .fps-separator {
+    color: rgba(255, 255, 255, 0.25);
+    margin: 0 3px;
+}
+
+/* Road Zone Telemetry HUD (Street Name Removed & Hidden) */
+#road-hud-panel {
+    position: absolute;
+    top: 30px;
+    left: 410px;
+    display: none !important;
+    align-items: center;
+    pointer-events: auto;
+    z-index: 20;
+}
+
+#road-zone-badge {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #ffaa00;
+    background: rgba(20, 15, 0, 0.80);
+    border: 1px solid rgba(255, 170, 0, 0.45);
+    padding: 6px 14px;
+    border-radius: 4px;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 0 15px rgba(255, 170, 0, 0.25);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.3s ease;
+}
+
+#road-zone-badge .road-separator {
+    color: rgba(255, 255, 255, 0.25);
+    margin: 0 4px;
+}
+
+#road-width-val {
+    color: #00e5ff;
+}
+
+/* Road Narrowing Alert Banner */
+#road-alert-banner {
+    position: absolute;
+    top: 120px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Orbitron', monospace;
+    font-size: 0.95rem;
+    font-weight: 900;
+    color: #ffffff;
+    background: linear-gradient(90deg, rgba(255, 50, 0, 0.85), rgba(255, 150, 0, 0.85));
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    padding: 10px 24px;
+    border-radius: 4px;
+    box-shadow: 0 0 25px rgba(255, 50, 0, 0.7);
+    letter-spacing: 0.12em;
+    z-index: 30;
+    pointer-events: none;
+    transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+#road-alert-banner.alert-hidden {
+    opacity: 0;
+    transform: translate(-50%, -20px);
+}
+
+#road-alert-banner.alert-visible {
+    opacity: 1;
+    transform: translate(-50%, 0);
+    animation: alertPulse 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes alertPulse {
+    from { box-shadow: 0 0 15px rgba(255, 50, 0, 0.5); }
+    to { box-shadow: 0 0 35px rgba(255, 180, 0, 0.9); }
 }
 
 /* Top-Center: Score Badge */
@@ -300,12 +418,13 @@ canvas {
     to { opacity: 1.0; transform: scale(1.04); }
 }
 
-/* Top-Right: Lap Counter */
+/* Top-Right: Lap Counter (Hidden) */
 #dc-top-right {
     position: absolute;
     top: 30px;
     right: 40px;
     text-align: right;
+    display: none !important;
 }
 
 #dc-lap {
@@ -314,19 +433,48 @@ canvas {
     line-height: 1;
 }
 
-/* Bottom-Left: Track Minimap */
+/* Bottom-Left: Track Minimap (Minimal Clean White) */
 #dc-minimap {
     position: absolute;
-    bottom: 35px;
-    left: 35px;
-    width: 140px;
-    height: 140px;
+    bottom: 30px;
+    left: 30px;
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    background: rgba(10, 12, 18, 0.80);
+    border: 1.5px solid rgba(255, 255, 255, 0.35);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), inset 0 0 10px rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(12px);
+    overflow: hidden;
+    pointer-events: auto;
+    z-index: 15;
 }
 
-.minimap-svg {
+#minimap-canvas {
     width: 100%;
     height: 100%;
-    filter: drop-shadow(0 2px 8px rgba(0,0,0,0.8));
+    display: block;
+}
+
+#minimap-label {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Inter', sans-serif;
+    font-size: 0.58rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: #ffffff;
+    background: rgba(0, 0, 0, 0.80);
+    border: 1px solid rgba(255, 255, 255, 0.30);
+    padding: 2px 10px;
+    border-radius: 12px;
+    white-space: nowrap;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    gap: 5px;
 }
 
 /* Precision Badge */

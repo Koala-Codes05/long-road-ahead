@@ -26,11 +26,21 @@
     <!-- Driveclub HUD Overlay -->
     <div id="hud" style="display: none;">
 
-        <!-- Top Left: Position & Lap Time -->
-        <div id="dc-top-left">
+        <!-- Top Left: Position & Lap Time (Hidden) -->
+        <div id="dc-top-left" style="display: none;">
             <div class="dc-label">POS</div>
             <div id="dc-pos"><span id="pos-val">1</span><span class="dc-total">/8</span></div>
             <div id="dc-time">0:42.798</div>
+        </div>
+
+        <!-- Performance HUD (Top Left, Small) -->
+        <div id="fps-hud-panel">
+            <div id="fps-counter-badge">
+                <span class="fps-icon">⚡</span>
+                <span id="fps-val">60</span> <span class="fps-unit">FPS</span>
+                <span class="fps-separator">|</span>
+                <span id="frametime-val">16</span><span class="fps-unit">ms</span>
+            </div>
         </div>
 
         <!-- Top Center: Fame / Score Star -->
@@ -39,10 +49,17 @@
             <span class="dc-star">★</span>
         </div>
 
-        <!-- Top Right: Lap Counter -->
-        <div id="dc-top-right">
+        <!-- Top Right: Lap Counter (Hidden) -->
+        <div id="dc-top-right" style="display: none;">
             <div class="dc-label">LAP</div>
             <div id="dc-lap">1/3</div>
+        </div>
+
+        <!-- Road Zone & Width Telemetry HUD Badge (Hidden) -->
+        <div id="road-hud-panel" style="display: none;">
+            <div id="road-zone-badge">
+                <span id="road-width-val">26.0m</span>
+            </div>
         </div>
 
         <!-- Weather Preset Selector Bar -->
@@ -52,21 +69,24 @@
             <button class="weather-btn" data-type="3">CLEAR 🌙</button>
         </div>
 
-        <!-- Vehicle Lighting Status Bar -->
+        <!-- Vehicle Lighting & Camera Status Bar -->
         <div id="lights-hud-bar">
+            <span id="badge-camera" class="light-badge active-neon">🎥 3RD CHASE</span>
+            <span id="badge-rainmode" class="light-badge active-neon">🌧️ HYBRID (OLD + NEW)</span>
+            <span id="badge-dissect" class="light-badge">🔧 DISSECT: OFF</span>
             <span id="badge-headlights" class="light-badge active-low">💡 LOW</span>
             <span id="badge-signal-left" class="light-badge">◄</span>
             <span id="badge-hazards" class="light-badge">▲</span>
             <span id="badge-signal-right" class="light-badge">►</span>
-            <span id="badge-underglow" class="light-badge active-neon">NEON</span>
         </div>
 
         <!-- Bottom Left: Track Minimap -->
         <div id="dc-minimap">
-            <svg viewBox="0 0 100 100" class="minimap-svg">
-                <path d="M 15,80 Q 20,20 50,20 T 85,80 Z" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="3.5" stroke-linecap="round"/>
-                <polygon points="50,18 45,26 55,26" fill="#00ff66"/>
-            </svg>
+            <canvas id="minimap-canvas" width="280" height="280"></canvas>
+            <div id="minimap-label">
+                <span id="minimap-zone-icon">⚡</span>
+                <span id="minimap-zone-name">HIGHWAY</span>
+            </div>
         </div>
 
         <!-- Precision Indicator -->
@@ -93,16 +113,16 @@
 
         <!-- Controls Hint -->
         <div id="controls-hint">
-            <span>W/↑</span> Accelerate &nbsp;
+            <span>W/↑</span> Accel &nbsp;
             <span>S/↓</span> Brake &nbsp;
-            <span>A/←</span> Left &nbsp;
-            <span>D/→</span> Right &nbsp;
-            <span>SPACE</span> Handbrake &nbsp;
+            <span>A/D</span> Steer &nbsp;
+            <span>C/V</span> Camera &nbsp;
+            <span>R</span> Rain Mode &nbsp;
+            <span>X</span> Dissect Car &nbsp;
+            <span>SPACE</span> Drift &nbsp;
             <span>L-SHIFT</span> Nitro &nbsp;
             <span>L</span> Lights &nbsp;
-            <span>H</span> Hazards &nbsp;
-            <span>Q/E</span> Signals &nbsp;
-            <span>U</span> Neon
+            <span>H</span> Hazards
         </div>
     </div>
 
