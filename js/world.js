@@ -330,6 +330,42 @@ export class World {
             emissiveIntensity: 1.8,
             side: THREE.DoubleSide,
         });
+        this.streetLampPoleMat = new THREE.MeshStandardMaterial({
+            color: 0x2f3742,
+            metalness: 0.8,
+            roughness: 0.28,
+            envMapIntensity: 1.4,
+        });
+        this.streetLampGlowMat = new THREE.MeshStandardMaterial({
+            color: 0xffd08a,
+            emissive: 0xffa640,
+            emissiveIntensity: 5.2,
+            roughness: 0.2,
+        });
+        const lampPoolCanvas = document.createElement('canvas');
+        lampPoolCanvas.width = 256;
+        lampPoolCanvas.height = 256;
+        const lampPoolCtx = lampPoolCanvas.getContext('2d');
+        const lampPoolGradient = lampPoolCtx.createRadialGradient(128, 128, 0, 128, 128, 128);
+        lampPoolGradient.addColorStop(0, 'rgba(255, 230, 165, 0.82)');
+        lampPoolGradient.addColorStop(0.32, 'rgba(255, 180, 82, 0.44)');
+        lampPoolGradient.addColorStop(0.68, 'rgba(255, 135, 42, 0.16)');
+        lampPoolGradient.addColorStop(1, 'rgba(255, 125, 35, 0)');
+        lampPoolCtx.fillStyle = lampPoolGradient;
+        lampPoolCtx.fillRect(0, 0, 256, 256);
+
+        const lampPoolTexture = new THREE.CanvasTexture(lampPoolCanvas);
+        lampPoolTexture.colorSpace = THREE.SRGBColorSpace;
+
+        this.streetLampPoolMat = new THREE.MeshBasicMaterial({
+            color: 0xffa64a,
+            map: lampPoolTexture,
+            transparent: true,
+            opacity: 0.82,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+        });
         this.puddleMat = new THREE.MeshStandardMaterial({
             color: 0x0a0a14,
             metalness: 0.98,
@@ -382,6 +418,9 @@ export class World {
         const reflectorGeos = [];
         const puddleGeos = [];
         const signGeos = [];
+        const streetLampPoleGeos = [];
+        const streetLampGlowGeos = [];
+        const streetLampPoolGeos = [];
 
         const addQuad = (targetArray, p0, p1, nx0, nz0, nx1, nz1, z0, z1, xOff, lineW, yPos = 0.022) => {
             const hw = lineW / 2;
@@ -418,6 +457,43 @@ export class World {
             if (angle !== 0) boxGeo.rotateY(angle);
             boxGeo.translate(cx, cy, cz);
             targetArray.push(boxGeo);
+        };
+
+        const addStreetLamp = (side, p, z, nx, nz) => {
+            const sideSign = Math.sign(side);
+            const roadTangent = new THREE.Vector3(-nz, 0, nx).normalize();
+            const centerX = p.x + nx * side;
+            const centerZ = z + nz * side;
+            const lampTopY = 5.7;
+
+            addBox(streetLampPoleGeos, centerX, lampTopY * 0.5, centerZ, 0.18, lampTopY, 0.18, p.angle);
+            addBox(
+                streetLampPoleGeos,
+                centerX - nx * sideSign * 1.05,
+                lampTopY,
+                centerZ - nz * sideSign * 1.05,
+                2.1,
+                0.14,
+                0.14,
+                p.angle
+            );
+
+            const bulbX = centerX - nx * sideSign * 2.35;
+            const bulbZ = centerZ - nz * sideSign * 2.35;
+            const bulbGeo = new THREE.SphereGeometry(0.28, 10, 8);
+            bulbGeo.translate(bulbX, lampTopY - 0.18, bulbZ);
+            streetLampGlowGeos.push(bulbGeo);
+
+            const poolGeo = new THREE.CircleGeometry(11.5, 40);
+            poolGeo.scale(1.0, 2.15, 1);
+            poolGeo.rotateX(-Math.PI / 2);
+            poolGeo.rotateY(p.angle);
+            poolGeo.translate(
+                p.x + nx * (sideSign * 5.2),
+                0.031,
+                z + nz * (sideSign * 5.2)
+            );
+            streetLampPoolGeos.push(poolGeo);
         };
 
         for (let i = 0; i < this.segmentsPerChunk; i++) {
@@ -484,6 +560,17 @@ export class World {
                 }
             });
 
+            // Sparse roadside lamps: wide spacing keeps the stormy highway mood intact.
+            const lampCycle = Math.floor((-z0) / 85.0);
+            if (lampCycle !== Math.floor((-z1) / 85.0)) {
+                const lampZ = -lampCycle * 85.0;
+                const lampPoint = getRoadPoint(lampZ);
+                const lampNx = Math.cos(lampPoint.angle);
+                const lampNz = Math.sin(lampPoint.angle);
+                const side = lampCycle % 2 === 0 ? -11.6 : 11.6;
+                addStreetLamp(side, lampPoint, lampZ, lampNx, lampNz);
+            }
+
             // 4. Puddle Strips at Road Edges (reflective water accumulation)
             const puddleOffset = 10.5;
             const puddleWidth = 1.8;
@@ -512,6 +599,9 @@ export class World {
         safeAddMesh(whiteGeos, this.whiteLineMat, g);
         safeAddMesh(guardrailGeos, this.guardrailMat, g, true, false);
         safeAddMesh(reflectorGeos, this.reflectorMat, g);
+        safeAddMesh(streetLampPoleGeos, this.streetLampPoleMat, g, true, false);
+        safeAddMesh(streetLampGlowGeos, this.streetLampGlowMat, g);
+        safeAddMesh(streetLampPoolGeos, this.streetLampPoolMat, g);
         safeAddMesh(puddleGeos, this.puddleMat, g);
         safeAddMesh(signGeos, this.signMat, g);
 

@@ -78,7 +78,6 @@ export class Raindrops {
         this.dropColor = dropColor;
         this.options = Object.assign({}, defaultOptions, options);
         this.dropletsPixelDensity = 1;
-        this.dropletsCounter = 0;
         this.init();
     }
 

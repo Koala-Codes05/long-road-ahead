@@ -45,15 +45,12 @@ export const RainShader = {
                 vec4 waterSample = texture2D(uWaterMap, uv);
 
                 if (waterSample.a > 0.01) {
-                    float speedOpacity = mix(1.0, 0.8, smoothstep(0.0, 70.0, uSpeed));
-                    float weatherOpacity = uWeatherType == 1 ? 0.55 : 0.75;
-                    float dropOpacity = speedOpacity * weatherOpacity;
                     // Red & Green channels store normal vector, Blue stores depth/shine
                     vec2 norm = (waterSample.rg - vec2(0.5)) * 2.0;
                     norm.x += uGForce.x * 0.08; // Subtle lateral refraction tilt on cornering (no overlay shake)
-                    totalRefraction += norm * waterSample.a * dropOpacity;
-                    totalShine += waterSample.b * waterSample.a * dropOpacity;
-                    totalAlpha = waterSample.a * dropOpacity;
+                    totalRefraction += norm * waterSample.a;
+                    totalShine += waterSample.b * waterSample.a;
+                    totalAlpha = waterSample.a;
                 }
             }
 

@@ -182,15 +182,15 @@ function createFlareCenterTexture() {
     const ctx = canvas.getContext('2d');
 
     const grad = ctx.createRadialGradient(256, 256, 0, 256, 256, 250);
-    grad.addColorStop(0, 'rgba(255, 255, 255, 1.0)');
-    grad.addColorStop(0.15, 'rgba(210, 235, 255, 0.8)');
-    grad.addColorStop(0.4, 'rgba(110, 170, 255, 0.3)');
-    grad.addColorStop(0.7, 'rgba(50, 90, 200, 0.08)');
+    grad.addColorStop(0, 'rgba(255, 255, 255, 0.45)');
+    grad.addColorStop(0.15, 'rgba(210, 235, 255, 0.32)');
+    grad.addColorStop(0.4, 'rgba(110, 170, 255, 0.12)');
+    grad.addColorStop(0.7, 'rgba(50, 90, 200, 0.03)');
     grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 512, 512);
 
-    ctx.strokeStyle = 'rgba(190, 220, 255, 0.2)';
+    ctx.strokeStyle = 'rgba(190, 220, 255, 0.06)';
     ctx.lineWidth = 1.5;
     for (let i = 0; i < 12; i++) {
         const angle = (i / 12) * Math.PI * 2;
@@ -209,20 +209,20 @@ function createAnamorphicStreakTexture() {
 
     const grad = ctx.createLinearGradient(0, 64, 1024, 64);
     grad.addColorStop(0, 'rgba(0, 0, 0, 0)');
-    grad.addColorStop(0.2, 'rgba(70, 130, 255, 0.1)');
-    grad.addColorStop(0.45, 'rgba(170, 215, 255, 0.65)');
-    grad.addColorStop(0.5, 'rgba(255, 255, 255, 0.95)');
-    grad.addColorStop(0.55, 'rgba(170, 215, 255, 0.65)');
-    grad.addColorStop(0.8, 'rgba(70, 130, 255, 0.1)');
+    grad.addColorStop(0.2, 'rgba(70, 130, 255, 0.03)');
+    grad.addColorStop(0.45, 'rgba(170, 215, 255, 0.20)');
+    grad.addColorStop(0.5, 'rgba(255, 255, 255, 0.32)');
+    grad.addColorStop(0.55, 'rgba(170, 215, 255, 0.20)');
+    grad.addColorStop(0.8, 'rgba(70, 130, 255, 0.03)');
     grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 56, 1024, 16);
 
     const gradY = ctx.createLinearGradient(512, 0, 512, 128);
     gradY.addColorStop(0, 'rgba(0, 0, 0, 0)');
-    gradY.addColorStop(0.4, 'rgba(90, 150, 255, 0.5)');
-    gradY.addColorStop(0.5, 'rgba(255, 255, 255, 1.0)');
-    gradY.addColorStop(0.6, 'rgba(90, 150, 255, 0.5)');
+    gradY.addColorStop(0.4, 'rgba(90, 150, 255, 0.22)');
+    gradY.addColorStop(0.5, 'rgba(255, 255, 255, 0.45)');
+    gradY.addColorStop(0.6, 'rgba(90, 150, 255, 0.22)');
     gradY.addColorStop(1, 'rgba(0, 0, 0, 0)');
     ctx.globalCompositeOperation = 'destination-in';
     ctx.fillStyle = gradY;
@@ -247,12 +247,12 @@ function createHexagonGhostTexture() {
     ctx.closePath();
 
     const grad = ctx.createRadialGradient(128, 128, 10, 128, 128, 100);
-    grad.addColorStop(0, 'rgba(130, 175, 255, 0.3)');
-    grad.addColorStop(0.7, 'rgba(80, 120, 230, 0.15)');
-    grad.addColorStop(1, 'rgba(30, 70, 170, 0.03)');
+    grad.addColorStop(0, 'rgba(130, 175, 255, 0.10)');
+    grad.addColorStop(0.7, 'rgba(80, 120, 230, 0.05)');
+    grad.addColorStop(1, 'rgba(30, 70, 170, 0.01)');
     ctx.fillStyle = grad;
     ctx.fill();
-    ctx.strokeStyle = 'rgba(190, 220, 255, 0.5)';
+    ctx.strokeStyle = 'rgba(190, 220, 255, 0.15)';
     ctx.lineWidth = 3;
     ctx.stroke();
 
@@ -264,11 +264,7 @@ const flareStreakTex = createAnamorphicStreakTexture();
 const flareGhostTex = createHexagonGhostTexture();
 
 const moonLensflare = new Lensflare();
-moonLensflare.addElement(new LensflareElement(flareMainTex, 320, 0, new THREE.Color(0xdce8ff)));
-moonLensflare.addElement(new LensflareElement(flareStreakTex, 950, 0, new THREE.Color(0x70b5ff)));
-moonLensflare.addElement(new LensflareElement(flareGhostTex, 80, 0.25, new THREE.Color(0x6095ff)));
-moonLensflare.addElement(new LensflareElement(flareGhostTex, 120, 0.45, new THREE.Color(0x4075e0)));
-moonLensflare.addElement(new LensflareElement(flareGhostTex, 65, 0.75, new THREE.Color(0x80a5ff)));
+moonLensflare.addElement(new LensflareElement(flareMainTex, 38, 0, new THREE.Color(0xdce8ff)));
 
 moon.add(moonLensflare);
 
@@ -458,6 +454,7 @@ const camTarget = new THREE.Vector3();
 const camIdeal = new THREE.Vector3();
 const camLookAt = new THREE.Vector3();
 let cameraShakeTime = 0;
+let chaseCameraHeading = 0;
 
 function updateCamera(dt) {
     const sr = Math.min(Math.abs(vehicle.speed) / vehicle.maxSpeed, 1);
@@ -503,13 +500,15 @@ function updateCamera(dt) {
             mouseOrbitPitch *= Math.pow(0.01, dt);
         }
 
-        const dist = 6.2 + zoomOffset;
-        const height = 2.1 + mouseOrbitPitch * 3.0;
-        const a = vehicle.heading + mouseOrbitYaw;
+        const dist = 7.1 + zoomOffset;
+        const height = 2.35 + mouseOrbitPitch * 3.0;
+        const headingLag = 1 - Math.exp(-4.2 * dt);
+        chaseCameraHeading = THREE.MathUtils.lerp(chaseCameraHeading, vehicle.heading, headingLag);
+        const a = chaseCameraHeading + mouseOrbitYaw;
 
         // Tightened chase camera distance scaling at high speed (prevents car getting too far away)
-        const speedCamDist = dist + sr * 0.15;
-        const speedCamHeight = Math.max(0.8, height - sr * 0.15);
+        const speedCamDist = dist + sr * 0.5;
+        const speedCamHeight = Math.max(1.05, height - sr * 0.05);
 
         camIdeal.set(
             vehicle.mesh.position.x + Math.sin(a) * speedCamDist,
@@ -517,19 +516,19 @@ function updateCamera(dt) {
             vehicle.mesh.position.z + Math.cos(a) * speedCamDist,
         );
 
-        // Snappy, physical camera lerp response during high-speed acceleration
-        const s = 1 - Math.exp(-35 * dt);
+        // Let the car move inside the frame so steering reads as vehicle motion, not world rotation.
+        const s = 1 - Math.exp(-8.0 * dt);
         camera.position.lerp(camIdeal, s);
 
         camTarget.set(
-            vehicle.mesh.position.x - Math.sin(vehicle.heading) * 3.5,
-            vehicle.mesh.position.y + 0.85,
-            vehicle.mesh.position.z - Math.cos(vehicle.heading) * 3.5,
+            vehicle.mesh.position.x - Math.sin(vehicle.heading) * 1.6,
+            vehicle.mesh.position.y + 0.95,
+            vehicle.mesh.position.z - Math.cos(vehicle.heading) * 1.6,
         );
         camLookAt.lerp(camTarget, s);
         camera.lookAt(camLookAt);
 
-        // Enable screen-space rain glass droplets & refraction pass on 3rd-person chase camera view from rain_system_backup
+        // Keep the tuned camera-lens rain visible in 3rd-person chase view.
         if (weather.rainPass) weather.rainPass.enabled = (weather.weatherType !== 3);
     }
 
@@ -844,6 +843,7 @@ function animate() {
 
     const dt = Math.min(clock.getDelta(), 0.05);
 
+    vehicle.camera = camera;
     vehicle.update(dt, input, weather);
     world.update(vehicle.mesh.position);
     cloudSystem.update(dt, vehicle.mesh.position);

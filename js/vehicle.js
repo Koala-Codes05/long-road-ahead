@@ -43,6 +43,7 @@ export class Vehicle {
         this.rollVel = 0;
         this.heaveDisplacement = 0;
         this.heaveVel = 0;
+        this.camera = null;
 
         // Modular Subsystems
         this.acceleratingSystem = new AcceleratingSystem(this);
@@ -63,9 +64,17 @@ export class Vehicle {
 
         this._initLightingSystem();
         this._initParticleEffects();
+        this._initContactShadow();
+        this._initCarAmbientOcclusion();
 
         // Procedural fallback car model + Ferrari GLTF load
         this.proceduralMesh = this._createCarModel();
+        this.proceduralMesh.traverse((child) => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+            }
+        });
         this.mesh.add(this.proceduralMesh);
         this._loadFerrariModel();
     }
@@ -98,7 +107,7 @@ export class Vehicle {
         
         const offsets = [-0.70, 0.70];
         offsets.forEach(() => {
-            const spot = new THREE.SpotLight(0xffffff, 200.0, 200, Math.PI / 4, 0.3, 1.0);
+            const spot = new THREE.SpotLight(0xfff2dc, 130.0, 190, Math.PI / 5.8, 0.48, 1.25);
             spot.castShadow = false;
             this.scene.add(spot);
 
@@ -113,7 +122,7 @@ export class Vehicle {
         // Two Soft Front Fill PointLights (Left and Right)
         this.headlightFillPoints = [];
         offsets.forEach(() => {
-            const fillPoint = new THREE.PointLight(0xffffff, 25.0, 50, 1.0);
+            const fillPoint = new THREE.PointLight(0xfff2dc, 4.0, 12, 2.0);
             this.lightsGroup.add(fillPoint);
             this.headlightFillPoints.push(fillPoint);
         });
@@ -181,6 +190,119 @@ export class Vehicle {
             depthWrite: false,
             side: THREE.DoubleSide
         });
+    }
+
+    _initContactShadow() {
+        const shadowMat = new THREE.ShaderMaterial({
+            uniforms: {
+                uOpacity: { value: 0.88 },
+            },
+            vertexShader: `
+                varying vec2 vUv;
+                void main() {
+                    vUv = uv;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform float uOpacity;
+                varying vec2 vUv;
+
+                float ellipse(vec2 p, vec2 c, vec2 r, float soft) {
+                    vec2 q = (p - c) / r;
+                    float d = dot(q, q);
+                    return 1.0 - smoothstep(1.0 - soft, 1.0, d);
+                }
+
+                void main() {
+                    float body = ellipse(vUv, vec2(0.5, 0.50), vec2(0.28, 0.48), 0.72) * 0.72;
+                    float core = ellipse(vUv, vec2(0.5, 0.50), vec2(0.18, 0.34), 0.68) * 0.46;
+                    float mask = max(body, core);
+                    float alpha = mask * uOpacity;
+                    if (alpha < 0.01) discard;
+                    gl_FragColor = vec4(0.0, 0.0, 0.0, alpha);
+                }
+            `,
+            transparent: true,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+        });
+
+        this.contactShadow = new THREE.Mesh(new THREE.PlaneGeometry(4.0, 7.0), shadowMat);
+        this.contactShadow.rotation.x = -Math.PI / 2;
+        this.contactShadow.renderOrder = 4;
+        this.scene.add(this.contactShadow);
+    }
+
+    _initCarAmbientOcclusion() {
+        const aoMat = new THREE.ShaderMaterial({
+            uniforms: {
+                uOpacity: { value: 0.62 },
+            },
+            vertexShader: `
+                varying vec2 vUv;
+                void main() {
+                    vUv = uv;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform float uOpacity;
+                varying vec2 vUv;
+
+                float ellipse(vec2 p, vec2 c, vec2 r, float soft) {
+                    vec2 q = (p - c) / r;
+                    float d = dot(q, q);
+                    return 1.0 - smoothstep(1.0 - soft, 1.0, d);
+                }
+
+                void main() {
+                    float center = ellipse(vUv, vec2(0.5, 0.52), vec2(0.34, 0.50), 0.78) * 0.82;
+                    float core = ellipse(vUv, vec2(0.5, 0.54), vec2(0.20, 0.36), 0.70) * 0.58;
+                    float alpha = max(center, core) * uOpacity;
+                    if (alpha < 0.01) discard;
+                    gl_FragColor = vec4(0.0, 0.0, 0.0, alpha);
+                }
+            `,
+            transparent: true,
+            depthWrite: false,
+            depthTest: false,
+            side: THREE.DoubleSide,
+        });
+
+        this.carAO = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 5.35), aoMat);
+        this.carAO.rotation.x = -Math.PI / 2;
+        this.carAO.position.set(0, 0.08, 0.1);
+        this.carAO.renderOrder = 30;
+        this.mesh.add(this.carAO);
+    }
+
+    _getShadowLightVector() {
+        const carPos = this.mesh.position;
+        const lightVector = new THREE.Vector3(15, 0, -160).normalize().multiplyScalar(0.22);
+
+        const carCycle = Math.round((-carPos.z) / 85.0);
+        for (let cycle = carCycle - 2; cycle <= carCycle + 2; cycle++) {
+            const lampZ = -cycle * 85.0;
+            const lampPoint = getRoadPoint(lampZ);
+            const lampNx = Math.cos(lampPoint.angle);
+            const lampNz = Math.sin(lampPoint.angle);
+            const sideSign = cycle % 2 === 0 ? -1 : 1;
+            const lampX = lampPoint.x + lampNx * (sideSign * 11.6) - lampNx * sideSign * 2.35;
+            const lampBulbZ = lampZ + lampNz * (sideSign * 11.6) - lampNz * sideSign * 2.35;
+
+            const toLamp = new THREE.Vector3(lampX - carPos.x, 0, lampBulbZ - carPos.z);
+            const distSq = Math.max(toLamp.lengthSq(), 1.0);
+            if (distSq > 4200) continue;
+
+            const weight = 145 / distSq;
+            lightVector.add(toLamp.normalize().multiplyScalar(weight));
+        }
+
+        if (lightVector.lengthSq() < 0.0001) {
+            lightVector.set(0, 0, -1);
+        }
+        return lightVector.normalize();
     }
 
     _emitSmoke(x, z, intensity) {
@@ -487,7 +609,15 @@ export class Vehicle {
                         child.receiveShadow = true;
 
                         if (child.name === 'lights') {
-                            this.gltfHeadlightMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 1.2 });
+                            this.gltfHeadlightMat = new THREE.MeshStandardMaterial({
+                                color: 0xdde8ff,
+                                emissive: 0xdde8ff,
+                                emissiveIntensity: 0.35,
+                                transparent: true,
+                                opacity: 0.55,
+                                side: THREE.FrontSide,
+                            });
+                            this.gltfHeadlightMesh = child;
                             child.material = this.gltfHeadlightMat;
                         }
                         if (child.name === 'lights_red') {
@@ -627,8 +757,9 @@ export class Vehicle {
         // 3. Chassis Suspension Physics (Pitch, Roll, Heave) with Lag
         // Stronger pitch/roll multipliers + brake dive & acceleration squat bonuses
         const brakeDiveBonus = (input.backward && this.vLong > 0.5) ? 0.02 : 0;
-        const squatBonus = (this.acceleratingSystem.aLong > 5) ? 0.015 : 0;
-        const targetPitch = -(this.acceleratingSystem.aLong / 9.81) * 0.065 + brakeDiveBonus - squatBonus;
+        const squatBonus = (this.acceleratingSystem.aLong > 5) ? 0.006 : 0;
+        const rawTargetPitch = -(this.acceleratingSystem.aLong / 9.81) * 0.032 + brakeDiveBonus - squatBonus;
+        const targetPitch = THREE.MathUtils.clamp(rawTargetPitch, -0.035, 0.045);
         const targetRoll = (this.turningSystem.aLat / 9.81) * 0.090;
         const roadBumpNoise = Math.sin(performance.now() * 0.018) * 0.006 * Math.min(Math.abs(this.vLong) / 25, 1.0);
         const targetHeave = -(Math.abs(this.acceleratingSystem.aLong) / 9.81) * 0.012 + roadBumpNoise;
@@ -645,6 +776,21 @@ export class Vehicle {
         this.mesh.rotation.z = this.rollAngle;
         this.mesh.rotation.x = this.pitchAngle;
         this.mesh.position.y = Math.max(-0.05, this.heaveDisplacement);
+
+        if (this.contactShadow) {
+            const toLight = this._getShadowLightVector();
+            const shadowDir = toLight.clone().multiplyScalar(-1);
+            const shadowOffset = 0.65;
+
+            this.contactShadow.position.set(
+                this.mesh.position.x + shadowDir.x * shadowOffset,
+                0.055,
+                this.mesh.position.z + shadowDir.z * shadowOffset
+            );
+            this.contactShadow.rotation.z = this.heading;
+            const speedFade = THREE.MathUtils.clamp(1.0 - Math.abs(this.vLong) / 120.0, 0.72, 1.0);
+            this.contactShadow.material.uniforms.uOpacity.value = 0.62 * speedFade;
+        }
 
         // 4. Wheel Animations & Steering Angle (Separated Transformations)
         const spin = -this.vLong * dt * 3.2;
@@ -693,9 +839,9 @@ export class Vehicle {
 
     _updateLights(dt, input) {
         const mode = input.headlightMode !== undefined ? input.headlightMode : 1;
-        const spotIntensity = mode === 2 ? 350.0 : (mode === 1 ? 160.0 : 0);
-        const spotDistance = mode === 2 ? 300 : 180;
-        const fillIntensity = mode === 2 ? 18.0 : (mode === 1 ? 8.0 : 0);
+        const spotIntensity = mode === 2 ? 260.0 : (mode === 1 ? 135.0 : 0);
+        const spotDistance = mode === 2 ? 255 : 165;
+        const fillIntensity = mode === 2 ? 7.0 : (mode === 1 ? 3.0 : 0);
 
         const sinH = Math.sin(this.heading);
         const cosH = Math.cos(this.heading);
@@ -703,6 +849,7 @@ export class Vehicle {
         const carX = this.mesh.position.x;
         const carY = this.mesh.position.y;
         const carZ = this.mesh.position.z;
+        const headlightViewFactor = this._getHeadlightViewFactor();
 
         const offsets = [-0.70, 0.70];
 
@@ -722,9 +869,9 @@ export class Vehicle {
                 spot.position.set(sx, sy, sz);
 
                 // Spot target 70m straight down the road (0.40m height skimming above road)
-                const tx = carX + cosH * sideOffset + sinH * (-70.0);
-                const ty = carY + 0.40;
-                const tz = carZ - sinH * sideOffset + cosH * (-70.0);
+                const tx = carX + cosH * sideOffset + sinH * (-85.0);
+                const ty = carY + 0.25;
+                const tz = carZ - sinH * sideOffset + cosH * (-85.0);
                 target.position.set(tx, ty, tz);
                 target.updateMatrixWorld();
             }
@@ -732,12 +879,17 @@ export class Vehicle {
             // Fill PointLights in local space (0.65m height)
             if (this.headlightFillPoints && this.headlightFillPoints[idx]) {
                 this.headlightFillPoints[idx].position.set(sideOffset, 0.65, -2.0);
-                this.headlightFillPoints[idx].intensity = fillIntensity;
+                this.headlightFillPoints[idx].intensity = fillIntensity * headlightViewFactor;
             }
         });
 
         if (this.gltfHeadlightMat) {
-            this.gltfHeadlightMat.emissiveIntensity = mode === 2 ? 4.0 : (mode === 1 ? 2.0 : 0.05);
+            const cameraBehindFactor = this._getCameraBehindFactor();
+            this.gltfHeadlightMat.emissiveIntensity = (mode === 2 ? 0.38 : (mode === 1 ? 0.16 : 0.015)) * headlightViewFactor * (1.0 - cameraBehindFactor);
+            this.gltfHeadlightMat.opacity = (mode === 0 ? 0.06 : 0.24) * headlightViewFactor * (1.0 - cameraBehindFactor * 0.96);
+            if (this.gltfHeadlightMesh) {
+                this.gltfHeadlightMesh.visible = cameraBehindFactor < 0.98 || mode !== 0;
+            }
         }
 
         // Brake Light Spot Update (rear is +2.3m in local Z, 0.50m height)
@@ -769,5 +921,31 @@ export class Vehicle {
             this.blinkerTimer = 0;
             this.blinkerState = !this.blinkerState;
         }
+    }
+
+    _getCameraBehindFactor() {
+        if (!this.camera) return 0;
+
+        const toCamera = this.camera.position.clone().sub(this.mesh.position);
+        toCamera.y = 0;
+        if (toCamera.lengthSq() < 0.001) return 0;
+        toCamera.normalize();
+
+        const forward = new THREE.Vector3(-Math.sin(this.heading), 0, -Math.cos(this.heading));
+        const rearFacingDot = forward.dot(toCamera);
+        return THREE.MathUtils.smoothstep(rearFacingDot, 0.05, 0.45);
+    }
+
+    _getHeadlightViewFactor() {
+        if (!this.camera) return 1;
+
+        const toCamera = this.camera.position.clone().sub(this.mesh.position);
+        toCamera.y = 0;
+        if (toCamera.lengthSq() < 0.001) return 1;
+        toCamera.normalize();
+
+        const forward = new THREE.Vector3(-Math.sin(this.heading), 0, -Math.cos(this.heading));
+        const frontDot = forward.dot(toCamera);
+        return THREE.MathUtils.smoothstep(frontDot, -0.05, -0.55);
     }
 }
