@@ -14,6 +14,7 @@ export const RainShader = {
         uGForce: { value: new THREE.Vector2(0, 0) },
         uRefractionDelta: { value: 0.06 },
         uWeatherType: { value: 0 },
+        uCameraMode: { value: 0 },             // 0: 3rd Person Chase, 1: Cockpit, 2: Bumper
         uLightningFlash: { value: 0.0 },
     },
     vertexShader: `
@@ -31,6 +32,7 @@ export const RainShader = {
         uniform vec2 uGForce;
         uniform float uRefractionDelta;
         uniform int uWeatherType;
+        uniform int uCameraMode;
         uniform float uLightningFlash;
         varying vec2 vUv;
 
@@ -41,16 +43,23 @@ export const RainShader = {
             float totalAlpha = 0.0;
 
             // 1. Sample Lucas Bebber dynamic 2D canvas water map physics
-            if (uWeatherType == 0 || uWeatherType == 1) { // Storm or Drizzle
+            if (uWeatherType == 0 || uWeatherType == 1 || uWeatherType == 2) { // Storm, Drizzle, or Cloudy Day
                 vec4 waterSample = texture2D(uWaterMap, uv);
 
                 if (waterSample.a > 0.01) {
-                    float speedOpacity = mix(1.0, 0.8, smoothstep(0.0, 70.0, uSpeed));
-                    float weatherOpacity = uWeatherType == 1 ? 0.55 : 0.75;
+                    float speedFactor = smoothstep(0.0, 70.0, uSpeed);
+                    float speedOpacity = mix(1.0, (uWeatherType == 2 ? 0.40 : 0.80), speedFactor);
+                    float weatherOpacity = (uWeatherType == 1) ? 0.55 : (uWeatherType == 2 ? 0.35 : 0.75);
+
+                    // Extra subtle opacity reduction for 3rd person camera on Cloudy Day
+                    if (uWeatherType == 2 && uCameraMode == 0) {
+                        weatherOpacity *= 0.35;
+                    }
+
                     float dropOpacity = speedOpacity * weatherOpacity;
                     // Red & Green channels store normal vector, Blue stores depth/shine
                     vec2 norm = (waterSample.rg - vec2(0.5)) * 2.0;
-                    norm.x += uGForce.x * 0.08; // Subtle lateral refraction tilt on cornering (no overlay shake)
+                    norm.x += uGForce.x * 0.08; // Subtle lateral refraction tilt on cornering
                     totalRefraction += norm * waterSample.a * dropOpacity;
                     totalShine += waterSample.b * waterSample.a * dropOpacity;
                     totalAlpha = waterSample.a * dropOpacity;

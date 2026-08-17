@@ -75,12 +75,31 @@ export class CloudSystem {
             mesh.scale.set(scale, scale, 1);
 
             this.cloudsGroup.add(mesh);
+            const baseOpacity = 0.25 + Math.random() * 0.25;
             this.clouds.push({
                 mesh: mesh,
+                baseOpacity: baseOpacity,
                 speed: 0.4 + Math.random() * 1.2,
                 rotSpeed: (Math.random() - 0.5) * 0.015,
             });
         }
+    }
+
+    setWeather(type) {
+        const isDaytime = (type === 2); // 2 = CLOUDY DAY (DAYTIME STORM)
+        this.clouds.forEach(cloud => {
+            const mat = cloud.mesh.material;
+            if (isDaytime) {
+                mat.blending = THREE.NormalBlending;
+                mat.color.setHex(0x9eb2c6);
+                mat.opacity = Math.min(0.88, cloud.baseOpacity * 2.5);
+            } else {
+                mat.blending = THREE.AdditiveBlending;
+                mat.color.setHex(0xffffff);
+                mat.opacity = cloud.baseOpacity;
+            }
+            mat.needsUpdate = true;
+        });
     }
 
     update(dt, carPos) {

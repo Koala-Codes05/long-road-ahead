@@ -280,7 +280,7 @@ export class World {
             tex.wrapT = THREE.RepeatWrapping;
             tex.minFilter = THREE.LinearMipmapLinearFilter;
             tex.magFilter = THREE.LinearFilter;
-            tex.anisotropy = 4;
+            tex.anisotropy = 16;
             tex.generateMipmaps = true;
         });
 
@@ -367,12 +367,12 @@ export class World {
             side: THREE.DoubleSide,
         });
         this.puddleMat = new THREE.MeshStandardMaterial({
-            color: 0x0a0a14,
-            metalness: 0.98,
-            roughness: 0.02,
+            color: 0x121824,
+            metalness: 0.15,
+            roughness: 0.015,
             transparent: true,
-            opacity: 0.0,
-            envMapIntensity: 1.5,
+            opacity: 0.80,
+            envMapIntensity: 2.2,
             side: THREE.DoubleSide,
             depthWrite: false,
         });
@@ -542,21 +542,73 @@ export class World {
                 addQuad(yellowGeos, p0, p1, nx0, nz0, nx1, nz1, z0, z1, xOff, 0.26, 0.024);
             });
 
-            // 3. Outer Shoulder W-Beam Guardrails & Posts
+            // 3. Outer Shoulder Continuous W-Beam Guardrails & Support Posts
             [-12.8, 12.8].forEach(xOff => {
-                const rL0 = p0.x + nx0 * xOff, rZ0 = z0 + nz0 * xOff;
-                const rL1 = p1.x + nx1 * xOff, rZ1 = z1 + nz1 * xOff;
-                const midX = (rL0 + rL1) / 2, midZ = (rZ0 + rZ1) / 2;
-                const segLen = Math.hypot(rL1 - rL0, rZ1 - rZ0);
+                const outSign = Math.sign(xOff);
+                const thick = 0.12 * outSign;
 
-                // Guardrail beam segment as Box
-                addBox(guardrailGeos, midX, 0.65, midZ, 0.10, 0.35, segLen + 0.05, p0.angle);
+                // Segment cross-section endpoints
+                const xF0 = p0.x + nx0 * xOff, zF0 = z0 + nz0 * xOff;
+                const xB0 = xF0 + nx0 * thick, zB0 = zF0 + nz0 * thick;
+                const xF1 = p1.x + nx1 * xOff, zF1 = z1 + nz1 * xOff;
+                const xB1 = xF1 + nx1 * thick, zB1 = zF1 + nz1 * thick;
 
-                // Guardrail posts & safety reflectors every 10m
+                const yTop = 0.85, yBot = 0.45;
+
+                // Continuous Front Face (Road Facing)
+                const geoF = new THREE.BufferGeometry();
+                geoF.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
+                    xF0, yTop, zF0,
+                    xF0, yBot, zF0,
+                    xF1, yTop, zF1,
+                    xF1, yBot, zF1,
+                ]), 3));
+                geoF.setAttribute('normal', new THREE.BufferAttribute(new Float32Array([
+                    -nx0 * outSign, 0, -nz0 * outSign,
+                    -nx0 * outSign, 0, -nz0 * outSign,
+                    -nx1 * outSign, 0, -nz1 * outSign,
+                    -nx1 * outSign, 0, -nz1 * outSign,
+                ]), 3));
+                geoF.setAttribute('uv', new THREE.BufferAttribute(new Float32Array([0, 1, 0, 0, 1, 1, 1, 0]), 2));
+                geoF.setIndex([0, 1, 2, 2, 1, 3]);
+                guardrailGeos.push(geoF);
+
+                // Continuous Back Face (Outward Facing)
+                const geoB = new THREE.BufferGeometry();
+                geoB.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
+                    xB0, yBot, zB0,
+                    xB0, yTop, zB0,
+                    xB1, yBot, zB1,
+                    xB1, yTop, zB1,
+                ]), 3));
+                geoB.setAttribute('normal', new THREE.BufferAttribute(new Float32Array([
+                    nx0 * outSign, 0, nz0 * outSign,
+                    nx0 * outSign, 0, nz0 * outSign,
+                    nx1 * outSign, 0, nz1 * outSign,
+                    nx1 * outSign, 0, nz1 * outSign,
+                ]), 3));
+                geoB.setAttribute('uv', new THREE.BufferAttribute(new Float32Array([0, 0, 0, 1, 1, 0, 1, 1]), 2));
+                geoB.setIndex([0, 1, 2, 2, 1, 3]);
+                guardrailGeos.push(geoB);
+
+                // Continuous Top Cap
+                const geoT = new THREE.BufferGeometry();
+                geoT.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
+                    xF0, yTop, zF0,
+                    xB0, yTop, zB0,
+                    xF1, yTop, zF1,
+                    xB1, yTop, zB1,
+                ]), 3));
+                geoT.setAttribute('normal', new THREE.BufferAttribute(new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0]), 3));
+                geoT.setAttribute('uv', new THREE.BufferAttribute(new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]), 2));
+                geoT.setIndex([0, 1, 2, 2, 1, 3]);
+                guardrailGeos.push(geoT);
+
+                // Vertical Support Posts & Reflectors every 10m
                 const postCycle = Math.floor((-z0) / 10.0);
                 if (postCycle !== Math.floor((-z1) / 10.0)) {
-                    addBox(guardrailGeos, rL0, 0.35, rZ0, 0.12, 0.70, 0.12, p0.angle);
-                    addBox(reflectorGeos, rL0, 0.88, rZ0, 0.16, 0.16, 0.06, p0.angle);
+                    addBox(guardrailGeos, xF0 + nx0 * (thick * 0.5), 0.35, zF0 + nz0 * (thick * 0.5), 0.12, 0.70, 0.12, p0.angle);
+                    addBox(reflectorGeos, xF0 + nx0 * (thick * 0.5), 0.88, zF0 + nz0 * (thick * 0.5), 0.16, 0.16, 0.06, p0.angle);
                 }
             });
 
@@ -571,11 +623,15 @@ export class World {
                 addStreetLamp(side, lampPoint, lampZ, lampNx, lampNz);
             }
 
-            // 4. Puddle Strips at Road Edges (reflective water accumulation)
-            const puddleOffset = 10.5;
-            const puddleWidth = 1.8;
-            [-1, 1].forEach(side => {
-                addQuad(puddleGeos, p0, p1, nx0, nz0, nx1, nz1, z0, z1, side * puddleOffset, puddleWidth, 0.015);
+            // 4. Ultra Puddle Strips at Road Edges & Tire Grooves (Reflective Water Accumulation)
+            const puddlePositions = [
+                { offset: -10.2, width: 2.2 },
+                { offset: -4.5,  width: 1.4 },
+                { offset: 4.5,   width: 1.4 },
+                { offset: 10.2,  width: 2.2 },
+            ];
+            puddlePositions.forEach(p => {
+                addQuad(puddleGeos, p0, p1, nx0, nz0, nx1, nz1, z0, z1, p.offset, p.width, 0.016);
             });
         }
 

@@ -41,7 +41,7 @@ export class WeatherSystem {
         this.rainVolume3D = new RainVolume3D(this.scene, this.rainLighting);
         this.farRainPoints = new FarRainPoints(this.scene);
 
-        // Weather Modes: 0 = Heavy Storm, 1 = Drizzle, 2 = Snow, 3 = Clear
+        // Weather Modes: 0 = Heavy Storm, 1 = Drizzle, 2 = Cloudy Day, 3 = Clear
         this.weatherType = 0;
         this.lightningTimer = 0;
         this.lightningFlash = 0;
@@ -175,7 +175,7 @@ export class WeatherSystem {
             this.rainPass.uniforms.uWeatherType.value = type;
         }
         if (this.raindrops) {
-            this.raindrops.options.raining = (type === 0 || type === 1);
+            this.raindrops.options.raining = (type === 0 || type === 1 || type === 2);
             this._applyRainModePreset();
         }
     }
@@ -227,7 +227,7 @@ export class WeatherSystem {
         const carPos = this.vehicle.mesh.position;
         const speed = Math.abs(this.vehicle.speed);
         const speedRatio = Math.min(speed / 70.0, 1.6); // Wind speed ratio
-        const windIntensity = this.weatherType === 0 ? 0.85 : (this.weatherType === 1 ? 0.45 : 0.0);
+        const windIntensity = this.weatherType === 0 ? 0.85 : (this.weatherType === 1 ? 0.45 : (this.weatherType === 2 ? 0.65 : 0.0));
         const targetWindX = Math.sin(this.clockTime * 0.18) * 0.75 * windIntensity;
         const targetWindY = Math.cos(this.clockTime * 0.25) * 0.35 * windIntensity;
 
@@ -255,6 +255,13 @@ export class WeatherSystem {
                 this.raindrops.options.dropletsRate = (isLightMode ? 5 : 9) + speedRatio * (isLightMode ? 8 : 14);
                 this.raindrops.options.dropFallMultiplier = 0.7 + speedRatio * 1.5;
                 this.raindrops.options.globalTimeScale = 0.8 + speedRatio * 1.0;
+            } else if (this.weatherType === 2) { // CLOUDY DAY (DAYTIME STORM)
+                this.raindrops.options.raining = true;
+                const isLightMode = this.rainModes[this.rainModeIndex] === 'light';
+                this.raindrops.options.rainChance = (isLightMode ? 0.15 : 0.24) + speedRatio * (isLightMode ? 0.18 : 0.28);
+                this.raindrops.options.dropletsRate = (isLightMode ? 14 : 24) + speedRatio * (isLightMode ? 20 : 36);
+                this.raindrops.options.dropFallMultiplier = 0.9 + speedRatio * 2.5;
+                this.raindrops.options.globalTimeScale = 0.95 + speedRatio * 1.4;
             } else {
                 this.raindrops.options.raining = false;
             }
@@ -284,7 +291,7 @@ export class WeatherSystem {
         // 4. Update 3D falling rain volume so weather still reads as rain in the world
         this.rainLighting.update(dt);
         const highSpeedOpacity = 1.0 - Math.min(speedRatio, 1.0) * 0.2;
-        const targetIntensity = (this.weatherType === 0 ? 0.75 : (this.weatherType === 1 ? 0.28 : 0.0)) * highSpeedOpacity;
+        const targetIntensity = (this.weatherType === 0 ? 0.75 : (this.weatherType === 1 ? 0.28 : (this.weatherType === 2 ? 0.55 : 0.0))) * highSpeedOpacity;
         this.rainVolume3D.update(dt, camera, this.clockTime, targetIntensity, this.windVector, cameraMode);
         this.farRainPoints.update(dt, camera, this.clockTime, targetIntensity, this.windVector, cameraMode);
 

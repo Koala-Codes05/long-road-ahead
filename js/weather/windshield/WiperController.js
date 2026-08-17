@@ -101,7 +101,7 @@ export class WiperController {
         this.raindrops.clearDrops();
         this.raindrops.options.rainMode = rainMode;
 
-        if (type === 0) { // STORM
+        if (type === 0 || type === 2) { // STORM or CLOUDY DAY
             this.raindrops.options.raining = true;
             if (rainMode === 'classic') {
                 this.raindrops.options.minR = 2.2;
@@ -185,6 +185,15 @@ export class WiperController {
                 this.raindrops.options.spawnArea = [-0.05, 1.05];
                 this.raindrops.options.trailRate = 0.75;
                 this.raindrops.options.trailScaleRange = [0.22, 0.48];
+            } else if (weatherType === 2) { // CLOUDY DAY
+                this.raindrops.options.raining = true;
+                this.raindrops.options.rainChance = isThirdPerson ? (0.10 + speedRatio * 0.05) : (0.35 + speedRatio * 0.10);
+                this.raindrops.options.dropletsRate = isThirdPerson ? Math.max(4, 10 - speedRatio * 5) : Math.max(10, 25 - speedRatio * 12);
+                this.raindrops.options.dropFallMultiplier = 0.9 + speedRatio * 3.0;
+                this.raindrops.options.globalTimeScale = 0.90 + speedRatio * 1.8;
+                this.raindrops.options.spawnArea = [-0.05, 1.05];
+                this.raindrops.options.trailRate = 0.35;
+                this.raindrops.options.trailScaleRange = [0.15, 0.32];
             } else if (weatherType === 1) { // DRIZZLE
                 this.raindrops.options.raining = true;
                 this.raindrops.options.rainChance = isThirdPerson ? (0.20 + speedRatio * 0.15) : (0.28 + speedRatio * 0.15);
@@ -257,7 +266,7 @@ export class WiperController {
     _updateVehicleWetness(dt, weatherType) {
         if (!this.vehicle || !this.vehicle.bodyMaterial) return;
 
-        const isRaining = weatherType !== 3;
+        const isRaining = (weatherType === 0 || weatherType === 1 || weatherType === 2);
         const targetWetness = isRaining ? 1.0 : 0.0;
         this.wetness = THREE.MathUtils.lerp(this.wetness, targetWetness, dt * (isRaining ? 0.3 : 0.1));
 
