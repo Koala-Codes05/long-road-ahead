@@ -63,6 +63,7 @@ export class Vehicle {
         this.scene.add(this.mesh);
 
         this._initLightingSystem();
+        this._initVehicleFakeEnvironmentLights();
         this._initParticleEffects();
         this._initContactShadow();
         this._initCarAmbientOcclusion();
@@ -139,6 +140,26 @@ export class Vehicle {
         this.reverseLightPoint.position.set(0, 0.5, 2.4);
         this.lightsGroup.add(this.reverseLightPoint);
     }
+
+    /* ------------------------------------------------
+       VEHICLE FAKE ENVIRONMENT & ROAD BOUNCE LIGHT RIG
+       Provides subtle top/front cool fill and road orange/red bounce
+       isolated ONLY to the car mesh (Layer 1) without lighting the scene.
+       ------------------------------------------------ */
+    _initVehicleFakeEnvironmentLights() {
+        // High-performance localized top/front cool fill (PointLight with 5.5m distance cutoff)
+        // Positioned above the hood and windshield
+        this.coolTopFrontFill = new THREE.PointLight(0x9cb5e0, 2.2, 5.5, 2.0);
+        this.coolTopFrontFill.position.set(0, 1.8, -1.2);
+        this.lightsGroup.add(this.coolTopFrontFill);
+
+        // High-performance localized red/orange road bounce (PointLight with 4.0m distance cutoff)
+        // Positioned underneath chassis to bounce onto side sills & wheel arches
+        this.warmRoadBounce = new THREE.PointLight(0xff4411, 1.8, 4.0, 2.0);
+        this.warmRoadBounce.position.set(0, -0.3, 0.2);
+        this.lightsGroup.add(this.warmRoadBounce);
+    }
+
 
     /* ------------------------------------------------
        DYNAMIC TIRE SMOKE & SKID MARKS SYSTEM
@@ -508,8 +529,15 @@ export class Vehicle {
         this.frontWheels = [];
         this.wheelSpinGroups = [];
 
-        // Photorealistic Materials
-        const bodyMat = new THREE.MeshStandardMaterial({ color: 0xd11a2a, metalness: 0.90, roughness: 0.12 });
+        // Photorealistic Materials with Enhanced Specular Response & Clearcoat
+        const bodyMat = new THREE.MeshPhysicalMaterial({
+            color: 0xd11a2a,
+            metalness: 0.35,
+            roughness: 0.16,
+            clearcoat: 1.0,
+            clearcoatRoughness: 0.06,
+            reflectivity: 0.9,
+        });
         const carbonMat = new THREE.MeshStandardMaterial({ color: 0x111115, metalness: 0.95, roughness: 0.15 });
         const chassisMat = new THREE.MeshStandardMaterial({ color: 0x22252a, metalness: 0.85, roughness: 0.30 });
         const glassMat = new THREE.MeshStandardMaterial({ color: 0x112233, metalness: 0.9, roughness: 0.05, transparent: true, opacity: 0.55 });
@@ -783,15 +811,16 @@ export class Vehicle {
                     });
                 }
 
-                // Apply glossy Ferrari Red body paint with balanced moonlight sheen
+                // Apply glossy Ferrari Red body paint with crisp specular highlights and clearcoat
                 const bodyMesh = carModel.getObjectByName('body');
                 if (bodyMesh) {
                     this.bodyMaterial = new THREE.MeshPhysicalMaterial({
                         color: 0xd11a2a,
-                        metalness: 0.45,
-                        roughness: 0.25,
-                        clearcoat: 0.7,
-                        clearcoatRoughness: 0.15,
+                        metalness: 0.35,
+                        roughness: 0.16,
+                        clearcoat: 1.0,
+                        clearcoatRoughness: 0.06,
+                        reflectivity: 0.9,
                     });
                     bodyMesh.material = this.bodyMaterial;
                 }

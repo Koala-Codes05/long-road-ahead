@@ -70,8 +70,9 @@ export class AcceleratingSystem {
         const targetRpm = (input.forward && Math.abs(this.v.vLong) < 2) ? 5200 : calcRpm;
         this.engineRpm = THREE.MathUtils.lerp(this.engineRpm, Math.max(900, Math.min(9000, targetRpm)), dt * 16.0);
 
-        // 3. Nitro Boost
-        this.isNitro = input.nitro && Math.abs(this.v.vLong) > 2;
+        // 3. Nitro Boost (Only activates when vehicle is in forward motion at speed >= 30 km/h)
+        const speedKmh = Math.abs(this.v.vLong) * 3.6;
+        this.isNitro = !!(input.nitro && input.forward && speedKmh >= 30.0);
         const nitroMult = this.isNitro ? this.nitroBoost : 1.0;
 
         // 4. Progressive Throttle Application (simulates turbo lag at high RPM)

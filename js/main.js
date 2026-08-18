@@ -15,6 +15,7 @@ import { SpeedTrailSystem } from './speedTrail.js';
 import { createMotionBlurPass } from './motionBlurShader.js';
 import { createFilmGrainPass } from './filmGrainShader.js';
 import { createCinematicGradePass } from './cinematicGradeShader.js';
+import { createFisheyePass } from './fisheyeShader.js';
 import { Minimap } from './minimap.js';
 import { AudioEngine } from './audio.js';
 
@@ -33,6 +34,7 @@ const camera = new THREE.PerspectiveCamera(
     60, window.innerWidth / window.innerHeight, 0.1, 800,
 );
 camera.position.set(0, 4, 10);
+
 
 /* =============================================
    RENDERER (Clean Canvas Initialization)
@@ -98,6 +100,7 @@ let renderer = null;
 let composer = null;
 let bloomPass = null;
 let cinematicGradePass = null;
+let fisheyePass = null;
 let motionBlurPass = null;
 let filmGrainPass = null;
 
@@ -111,7 +114,7 @@ function setupRendererSettings(r) {
     r.setSize(window.innerWidth, window.innerHeight);
     r.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
     r.shadowMap.enabled = true;
-    r.shadowMap.type = THREE.PCFSoftShadowMap; // Ultra-smooth soft shadows
+    r.shadowMap.type = THREE.PCFShadowMap; // Fast PCF filtered shadows (1.5-2.0ms budget)
     r.toneMapping = THREE.ACESFilmicToneMapping;
     r.toneMappingExposure = 1.18; // Balanced HDR exposure curve
     r.outputColorSpace = THREE.SRGBColorSpace;
@@ -143,6 +146,9 @@ function initComposerAndPasses(r) {
 
     cinematicGradePass = createCinematicGradePass();
     comp.addPass(cinematicGradePass);
+
+    fisheyePass = createFisheyePass();
+    comp.addPass(fisheyePass);
 
     motionBlurPass = createMotionBlurPass();
     comp.addPass(motionBlurPass);
@@ -948,9 +954,12 @@ let chaseCameraHeading = 0;
 function updateCamera(dt) {
     const sr = Math.min(Math.abs(vehicle.speed) / vehicle.maxSpeed, 1);
     const mode = input.cameraMode !== undefined ? input.cameraMode : 0;
-    const isNitro = !!vehicle.isNitro;
+    const isNitro = !!(vehicle && vehicle.isNitro);
 
-    if (mode === 1) { // 1st Person Cockpit / Windscreen View
+    // When Nitro is used, force Third Person Chase view with 14mm ultra-wide fisheye perspective
+    const effectiveMode = isNitro ? 0 : mode;
+
+    if (effectiveMode === 1) { // 1st Person Cockpit / Windscreen View
         const headX = vehicle.mesh.position.x - Math.sin(vehicle.heading) * (-0.15) + Math.cos(vehicle.heading) * 0.35;
         const headY = vehicle.mesh.position.y + 1.18;
         const headZ = vehicle.mesh.position.z - Math.cos(vehicle.heading) * (-0.15) - Math.sin(vehicle.heading) * 0.35;
@@ -967,7 +976,7 @@ function updateCamera(dt) {
         // Ensure rain pass is active for camera lens / windscreen drops in 1st person cockpit
         if (weather.rainPass) weather.rainPass.enabled = (weather.weatherType !== 3);
 
-    } else if (mode === 2) { // 1st Person Hood / Bumper View
+    } else if (effectiveMode === 2) { // 1st Person Hood / Bumper View
         const bumpX = vehicle.mesh.position.x - Math.sin(vehicle.heading) * 2.2;
         const bumpY = vehicle.mesh.position.y + 0.65;
         const bumpZ = vehicle.mesh.position.z - Math.cos(vehicle.heading) * 2.2;
@@ -983,7 +992,7 @@ function updateCamera(dt) {
 
         if (weather.rainPass) weather.rainPass.enabled = (weather.weatherType !== 3);
 
-    } else { // 3rd Person Chase View (Clean Framing)
+    } else { // 3rd Person Chase View (Clean Framing & 14mm Fisheye Nitro)
         if (!isMouseDown) {
             mouseOrbitYaw *= Math.pow(0.01, dt);
             mouseOrbitPitch *= Math.pow(0.01, dt);
@@ -995,7 +1004,7 @@ function updateCamera(dt) {
         chaseCameraHeading = THREE.MathUtils.lerp(chaseCameraHeading, vehicle.heading, headingLag);
         const a = chaseCameraHeading + mouseOrbitYaw;
 
-        // Pull camera slightly closer at high speed to compensate for FOV and velocity
+        // Smooth chase camera positioning
         const speedCamDist = Math.max(4.5, dist - sr * 0.8);
         const speedCamHeight = Math.max(1.1, height - sr * 0.2);
 
@@ -1005,8 +1014,8 @@ function updateCamera(dt) {
             vehicle.mesh.position.z + Math.cos(a) * speedCamDist,
         );
 
-        // Dynamic lerp rate increases with speed so camera stays locked right behind the car
-        const lerpSpeed = 12.0 + sr * 24.0;
+        // Dynamic lerp rate increases with speed/nitro so camera stays locked right behind the car
+        const lerpSpeed = isNitro ? 24.0 : (12.0 + sr * 24.0);
         const s = 1 - Math.exp(-lerpSpeed * dt);
         camera.position.lerp(camIdeal, s);
 
@@ -1067,11 +1076,21 @@ function updateCamera(dt) {
         camera.rotation.x += pitchJitter;
     }
 
-    // Tight Speed FOV Control (60 deg -> 63 deg max for locked car framing)
-    const nitroFov = vehicle.isNitro ? 2.0 : 0.0;
-    const targetFov = 60.0 + (sr * 3.0) + nitroFov;
-    camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, dt * 8.0);
+    // Natural FOV Control (60° standard -> 68° max during speed & Nitro)
+    const targetFov = isNitro ? 68.0 : (60.0 + sr * 3.0);
+    const fovLerpRate = isNitro ? 10.0 : 8.0;
+    camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, dt * fovLerpRate);
     camera.updateProjectionMatrix();
+
+    // Corner Fisheye Barrel Distortion Pass
+    if (fisheyePass) {
+        const targetFisheyeStrength = isNitro ? 1.0 : 0.0;
+        fisheyePass.uniforms.uStrength.value = THREE.MathUtils.lerp(
+            fisheyePass.uniforms.uStrength.value,
+            targetFisheyeStrength,
+            dt * 10.0
+        );
+    }
 
     // Bloom ramps with speed (balanced for subtle glow)
     if (bloomPass) bloomPass.strength = 0.25 + sr * 0.2;
@@ -1206,10 +1225,15 @@ function updateHUD() {
 
     // Camera View Status Badge
     if (elBadgeCamera) {
-        const mode = input.cameraMode !== undefined ? input.cameraMode : 0;
-        if (mode === 1) elBadgeCamera.textContent = '🎥 1ST COCKPIT';
-        else if (mode === 2) elBadgeCamera.textContent = '🎥 1ST BUMPER';
-        else elBadgeCamera.textContent = '🎥 3RD CHASE';
+        const isNitro = !!(vehicle && vehicle.isNitro);
+        if (isNitro) {
+            elBadgeCamera.textContent = '🎥 3RD FISHEYE 14MM (NITRO)';
+        } else {
+            const mode = input.cameraMode !== undefined ? input.cameraMode : 0;
+            if (mode === 1) elBadgeCamera.textContent = '🎥 1ST COCKPIT';
+            else if (mode === 2) elBadgeCamera.textContent = '🎥 1ST BUMPER';
+            else elBadgeCamera.textContent = '🎥 3RD CHASE';
+        }
     }
 
     // Rain FX Mode Status Badge
@@ -1355,7 +1379,7 @@ function animate() {
     vehicle.update(dt, input, weather);
     world.update(vehicle.mesh.position);
     cloudSystem.update(dt, vehicle.mesh.position);
-    weather.update(dt, input.cameraMode, camera);
+    weather.update(dt, input.cameraMode, camera, renderer);
     audioEngine.update(vehicle, weather.weatherType !== 3, weather.weatherType);
 
     const isDrifting = vehicle.isDrifting || input.handbrake || (input.brake && Math.abs(input.steering) > 0.3);

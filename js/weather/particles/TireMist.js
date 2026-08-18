@@ -24,8 +24,8 @@ function getWetSprayParticleTexture() {
 
     const grad = ctx.createRadialGradient(16, 16, 0, 16, 16, 15);
     grad.addColorStop(0.0, 'rgba(240, 248, 255, 1.0)');
-    grad.addColorStop(0.35, 'rgba(200, 230, 255, 0.65)');
-    grad.addColorStop(0.70, 'rgba(160, 205, 250, 0.20)');
+    grad.addColorStop(0.35, 'rgba(200, 230, 255, 0.70)');
+    grad.addColorStop(0.70, 'rgba(160, 205, 250, 0.25)');
     grad.addColorStop(1.0, 'rgba(120, 180, 240, 0.0)');
 
     ctx.fillStyle = grad;
@@ -90,23 +90,25 @@ function getWetTireTrackTexture() {
 }
 
 /* ----------------------------------------------------
-   1. WET TIRE TRACKS SUB-SYSTEM (ZERO-GC RING BUFFER)
+   1. WET TIRE TRACKS SUB-SYSTEM (SMART DECAL RIBBON)
+   Renders darker, smoother, reflective wet tire tracks
+   that fade over 1-3 seconds as water fills back in.
 ---------------------------------------------------- */
 class TrackPoint {
     constructor() {
         this.pos = new THREE.Vector3();
         this.rightVec = new THREE.Vector3();
-        this.width = 0.3;
+        this.width = 0.32;
         this.opacity = 0;
         this.age = 0;
-        this.maxAge = 4.0;
+        this.maxAge = 2.5;
     }
 }
 
 class WetTireTracks {
     constructor(scene) {
         this.scene = scene;
-        this.maxPointsPerWheel = 50; // 50 points = 49 quads (Ultra-lightweight & smooth)
+        this.maxPointsPerWheel = 80; // 80 points = 79 ribbon quads per tire
         this.trackTex = getWetTireTrackTexture();
 
         this.wheelsData = [];
@@ -120,13 +122,15 @@ class WetTireTracks {
                 varying vec2 vUv;
                 varying float vAlpha;
                 varying float vAgeRatio;
+                varying vec3 vWorldPosition;
 
                 void main() {
                     vUv = uv;
                     vAlpha = aAlpha;
                     vAgeRatio = aAgeRatio;
-                    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-                    gl_Position = projectionMatrix * mvPosition;
+                    vec4 worldPos = modelMatrix * vec4(position, 1.0);
+                    vWorldPosition = worldPos.xyz;
+                    gl_Position = projectionMatrix * viewMatrix * worldPos;
                 }
             `,
             fragmentShader: `
@@ -134,14 +138,35 @@ class WetTireTracks {
                 varying vec2 vUv;
                 varying float vAlpha;
                 varying float vAgeRatio;
+                varying vec3 vWorldPosition;
 
                 void main() {
                     vec4 tex = texture2D(uMap, vUv);
-                    float edgeMask = smoothstep(0.0, 0.15, vUv.x) * smoothstep(1.0, 0.85, vUv.x);
-                    float ageFade = pow(clamp(1.0 - vAgeRatio, 0.0, 1.0), 1.6);
-                    float alpha = vAlpha * tex.a * edgeMask * ageFade * 0.75;
+                    
+                    // Smooth edge mask for tire track width boundary
+                    float edgeMask = smoothstep(0.0, 0.12, vUv.x) * smoothstep(1.0, 0.88, vUv.x);
+                    
+                    // Lifespan fade out (1 - 3 seconds)
+                    float ageFade = pow(clamp(1.0 - vAgeRatio, 0.0, 1.0), 1.5);
+                    
+                    // Disturbed water micro-ripple edge noise
+                    float disturbance = sin(vUv.y * 35.0 + vUv.x * 12.0) * 0.1 + 0.9;
+                    
+                    float alpha = vAlpha * tex.a * edgeMask * ageFade * disturbance * 0.90;
                     if (alpha < 0.005) discard;
-                    gl_FragColor = vec4(vec3(0.04, 0.06, 0.09), alpha);
+                    
+                    // Darker, smoother, high-gloss wet track groove tint
+                    vec3 wetTrackColor = vec3(0.02, 0.03, 0.05);
+                    
+                    // High-gloss specular highlight (simulating wet sheen reflection on cleared tire groove)
+                    vec3 viewDir = normalize(cameraPosition - vWorldPosition);
+                    vec3 lightDir = normalize(vec3(0.2, 1.0, 0.4));
+                    vec3 halfDir = normalize(lightDir + viewDir);
+                    float spec = pow(max(dot(vec3(0.0, 1.0, 0.0), halfDir), 0.0), 28.0);
+                    
+                    vec3 finalColor = mix(wetTrackColor, vec3(0.75, 0.85, 1.0), spec * 0.42);
+                    
+                    gl_FragColor = vec4(finalColor, alpha);
                 }
             `,
             transparent: true,
@@ -215,7 +240,7 @@ class WetTireTracks {
 
             if (wetness >= 0.02 && speedKmh >= 0.5 && state) {
                 const distSq = state.pos.distanceToSquared(wData.lastPos);
-                if (distSq >= 0.0625) { // ~0.25m spacing
+                if (distSq >= 0.04) { // ~0.20m spacing for dense unbroken ribbons
                     wData.lastPos.copy(state.pos);
 
                     // Push new point into ring pool (shift pool right)
@@ -226,13 +251,15 @@ class WetTireTracks {
                     }
                     pool[0] = lastPt;
 
-                    const speedFactor = Math.min(speedKmh / 60.0, 1.2);
+                    const speedFactor = Math.min(speedKmh / 60.0, 1.5);
                     lastPt.pos.copy(state.pos);
                     lastPt.rightVec.copy(state.rightVec);
                     lastPt.width = state.width;
-                    lastPt.opacity = Math.min(0.42 + speedFactor * 0.48, 0.92) * wetness;
+                    lastPt.opacity = Math.min(0.50 + speedFactor * 0.45, 0.95) * wetness;
                     lastPt.age = 0.0;
-                    lastPt.maxAge = 3.5 + wetness * 2.5;
+                    
+                    // Track path fades after 1 - 3 seconds as rainwater levels out
+                    lastPt.maxAge = 1.2 + wetness * 1.8;
 
                     if (wData.activeCount < this.maxPointsPerWheel) {
                         wData.activeCount++;
@@ -314,12 +341,12 @@ class WetTireTracks {
 }
 
 /* ----------------------------------------------------
-   2. WATER DISPLACEMENT SPRAY (ACTIVE-INDEX RECYCLING)
+   2. WATER DISPLACEMENT SPRAY (DYNAMIC SPEED SCALING)
 ---------------------------------------------------- */
 class WaterDisplacementSpray {
     constructor(scene) {
         this.scene = scene;
-        this.maxParticles = 320; // Reduced from 1400 -> 320 (Instant 80% CPU speedup!)
+        this.maxParticles = 640; // Dense V-spray fan capacity
         this.wetTex = getWetSprayParticleTexture();
 
         const geo = new THREE.BufferGeometry();
@@ -348,7 +375,7 @@ class WaterDisplacementSpray {
                 void main() {
                     vAlpha = alpha;
                     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-                    gl_PointSize = size * (180.0 / -mvPosition.z);
+                    gl_PointSize = size * (220.0 / -mvPosition.z);
                     gl_Position = projectionMatrix * mvPosition;
                 }
             `,
@@ -378,7 +405,6 @@ class WaterDisplacementSpray {
         this.velocities = new Float32Array(this.maxParticles * 3);
         this.baseSizes = new Float32Array(this.maxParticles);
 
-        // Active index list for O(Active) updates
         this.activeIndices = new Int32Array(this.maxParticles);
         this.activeCount = 0;
         this.nextFreeIdx = 0;
@@ -396,7 +422,6 @@ class WaterDisplacementSpray {
             const idx = this.nextFreeIdx;
             this.nextFreeIdx = (this.nextFreeIdx + 1) % this.maxParticles;
 
-            // Register in active indices if not already active
             let isAlreadyActive = false;
             for (let a = 0; a < this.activeCount; a++) {
                 if (this.activeIndices[a] === idx) {
@@ -409,27 +434,28 @@ class WaterDisplacementSpray {
             }
 
             this.lifetimes[idx] = 0.0;
-            this.maxLifetimes[idx] = 0.22 + Math.random() * 0.35 + Math.min(speedRatio * 0.2, 0.3);
+            this.maxLifetimes[idx] = 0.25 + Math.random() * 0.35 + Math.min(speedRatio * 0.3, 0.45);
 
-            const spreadRadius = 0.12 + Math.random() * 0.12;
+            const spreadRadius = 0.15 + Math.random() * 0.15;
             const pIdx = idx * 3;
             positions[pIdx + 0] = wheelState.pos.x + (Math.random() - 0.5) * spreadRadius;
-            positions[pIdx + 1] = wheelState.pos.y + 0.05 + Math.random() * 0.06;
+            positions[pIdx + 1] = wheelState.pos.y + 0.05 + Math.random() * 0.08;
             positions[pIdx + 2] = wheelState.pos.z + (Math.random() - 0.5) * spreadRadius;
 
-            const flingBackSpeed = (speedMps * (0.4 + Math.random() * 0.5) + 2.0 + Math.random() * 1.5);
-            const flingOutSpeed = wheelState.sideSign * (1.0 + speedRatio * 2.2) * (0.7 + Math.random() * 0.5);
-            const flingUpSpeed = 0.8 + speedRatio * 3.0 + Math.random() * 1.8;
+            // Fling velocity scales dynamically with vehicle speed!
+            const flingBackSpeed = (speedMps * (0.65 + Math.random() * 0.6) + 3.0);
+            const flingOutSpeed = wheelState.sideSign * (1.5 + speedRatio * 3.2) * (0.6 + Math.random() * 0.6);
+            const flingUpSpeed = 1.2 + speedRatio * 4.2 + Math.random() * 2.2;
 
             this.velocities[pIdx + 0] = wheelState.forwardDir.x * (-flingBackSpeed) + wheelState.outwardDir.x * flingOutSpeed;
             this.velocities[pIdx + 1] = flingUpSpeed;
             this.velocities[pIdx + 2] = wheelState.forwardDir.z * (-flingBackSpeed) + wheelState.outwardDir.z * flingOutSpeed;
 
-            const bSize = (1.4 + Math.random() * 1.5) * (1.0 + Math.min(speedRatio * 0.7, 1.0));
+            const bSize = (1.8 + Math.random() * 1.8) * (1.0 + Math.min(speedRatio * 0.8, 1.4));
             this.baseSizes[idx] = bSize;
             sizes[idx] = bSize;
 
-            alphas[idx] = Math.min(0.5 + speedRatio * 0.4, 0.95) * wetness * puddleFactor;
+            alphas[idx] = Math.min(0.55 + speedRatio * 0.45, 0.98) * wetness * puddleFactor;
         }
     }
 
@@ -441,7 +467,7 @@ class WaterDisplacementSpray {
         const alphas = this.mesh.geometry.attributes.alpha.array;
 
         let needsPos = false, needsSize = false, needsAlpha = false;
-        const drag = Math.pow(0.84, dt * 60);
+        const drag = Math.pow(0.85, dt * 60);
 
         for (let a = this.activeCount - 1; a >= 0; a--) {
             const i = this.activeIndices[a];
@@ -454,28 +480,27 @@ class WaterDisplacementSpray {
                 alphas[i] = 0.0;
                 positions[idx3 + 1] = -100;
 
-                // Swap & pop to remove from active array in O(1)
                 this.activeIndices[a] = this.activeIndices[this.activeCount - 1];
                 this.activeCount--;
 
                 needsPos = true;
                 needsAlpha = true;
             } else {
-                this.velocities[idx3 + 1] -= 12.0 * dt;
+                this.velocities[idx3 + 1] -= 14.0 * dt;
                 this.velocities[idx3 + 0] *= drag;
                 this.velocities[idx3 + 2] *= drag;
 
-                positions[idx3 + 0] += (this.velocities[idx3 + 0] + windVector.x * 2.0) * dt;
+                positions[idx3 + 0] += (this.velocities[idx3 + 0] + windVector.x * 2.2) * dt;
                 positions[idx3 + 1] += this.velocities[idx3 + 1] * dt;
-                positions[idx3 + 2] += (this.velocities[idx3 + 2] + windVector.y * 1.8) * dt;
+                positions[idx3 + 2] += (this.velocities[idx3 + 2] + windVector.y * 2.0) * dt;
 
-                sizes[i] = this.baseSizes[i] * (1.0 + progress * 1.3);
-                alphas[i] *= 0.98;
+                sizes[i] = this.baseSizes[i] * (1.0 + progress * 1.5);
+                alphas[i] *= 0.97;
 
                 if (positions[idx3 + 1] <= 0.03) {
                     positions[idx3 + 1] = 0.03;
                     this.velocities[idx3 + 1] = 0;
-                    alphas[i] *= 0.85;
+                    alphas[i] *= 0.82;
                 }
 
                 needsPos = true;
@@ -491,12 +516,12 @@ class WaterDisplacementSpray {
 }
 
 /* ----------------------------------------------------
-   3. WHEEL MIST PLUME (LIGHTWEIGHT VOLUMETRIC SPRAY CLOUD)
+   3. WHEEL MIST PLUME (SPEED-SCALED MIST TRAIL)
 ---------------------------------------------------- */
 class WheelMistPlume {
     constructor(scene) {
         this.scene = scene;
-        this.maxParticles = 240; // Reduced from 1000 -> 240
+        this.maxParticles = 480; // High-density volumetric mist trail capacity
         this.smokeTex = getSmokeParticleTexture();
 
         const geo = new THREE.BufferGeometry();
@@ -525,7 +550,7 @@ class WheelMistPlume {
                 void main() {
                     vAlpha = alpha;
                     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-                    gl_PointSize = size * (200.0 / -mvPosition.z);
+                    gl_PointSize = size * (240.0 / -mvPosition.z);
                     gl_Position = projectionMatrix * mvPosition;
                 }
             `,
@@ -584,26 +609,26 @@ class WheelMistPlume {
             }
 
             this.lifetimes[idx] = 0.0;
-            this.maxLifetimes[idx] = 0.4 + Math.random() * 0.5 + Math.min(speedRatio * 0.3, 0.5);
+            this.maxLifetimes[idx] = 0.45 + Math.random() * 0.6 + Math.min(speedRatio * 0.4, 0.7);
 
             const pIdx = idx * 3;
-            positions[pIdx + 0] = wheelState.pos.x + (Math.random() - 0.5) * 0.25;
-            positions[pIdx + 1] = wheelState.pos.y + 0.12 + Math.random() * 0.2;
-            positions[pIdx + 2] = wheelState.pos.z + (Math.random() - 0.5) * 0.25;
+            positions[pIdx + 0] = wheelState.pos.x + (Math.random() - 0.5) * 0.30;
+            positions[pIdx + 1] = wheelState.pos.y + 0.12 + Math.random() * 0.25;
+            positions[pIdx + 2] = wheelState.pos.z + (Math.random() - 0.5) * 0.30;
 
-            const mistBackSpeed = (speedMps * 0.55 + 3.5) * (0.7 + Math.random() * 0.4);
-            const mistOutSpeed = wheelState.sideSign * (0.7 + speedRatio * 1.3) * (0.6 + Math.random() * 0.6);
-            const mistUpSpeed = 0.6 + Math.random() * 1.5;
+            const mistBackSpeed = (speedMps * 0.60 + 4.0) * (0.7 + Math.random() * 0.5);
+            const mistOutSpeed = wheelState.sideSign * (1.0 + speedRatio * 1.6) * (0.6 + Math.random() * 0.6);
+            const mistUpSpeed = 0.8 + Math.random() * 1.8;
 
             this.velocities[pIdx + 0] = wheelState.forwardDir.x * (-mistBackSpeed) + wheelState.outwardDir.x * mistOutSpeed;
             this.velocities[pIdx + 1] = mistUpSpeed;
             this.velocities[pIdx + 2] = wheelState.forwardDir.z * (-mistBackSpeed) + wheelState.outwardDir.z * mistOutSpeed;
 
-            const bSize = (2.0 + Math.random() * 2.0) * (1.0 + Math.min(speedRatio * 0.5, 0.8));
+            const bSize = (2.2 + Math.random() * 2.2) * (1.0 + Math.min(speedRatio * 0.6, 1.2));
             this.baseSizes[idx] = bSize;
             sizes[idx] = bSize;
 
-            alphas[idx] = Math.min(0.16 + speedRatio * 0.3, 0.50) * wetness;
+            alphas[idx] = Math.min(0.20 + speedRatio * 0.35, 0.60) * wetness;
         }
     }
 
@@ -615,7 +640,7 @@ class WheelMistPlume {
         const alphas = this.mesh.geometry.attributes.alpha.array;
 
         let needsPos = false, needsSize = false, needsAlpha = false;
-        const drag = Math.pow(0.88, dt * 60);
+        const drag = Math.pow(0.89, dt * 60);
 
         for (let a = this.activeCount - 1; a >= 0; a--) {
             const i = this.activeIndices[a];
@@ -645,10 +670,10 @@ class WheelMistPlume {
                 positions[idx3 + 1] += this.velocities[idx3 + 1] * dt;
                 positions[idx3 + 2] += (this.velocities[idx3 + 2] + turbulenceZ + windVector.y * 1.2) * dt;
 
-                sizes[i] = this.baseSizes[i] * (1.0 + progress * 2.4);
+                sizes[i] = this.baseSizes[i] * (1.0 + progress * 2.6);
 
                 const fade = Math.sin(progress * Math.PI);
-                alphas[i] = Math.min(alphas[i], fade * 0.42);
+                alphas[i] = Math.min(alphas[i], fade * 0.48);
 
                 needsPos = true;
                 needsSize = true;
@@ -793,35 +818,33 @@ export class TireMist {
 
         let wetness = 0.0;
         if (weatherType === 0) wetness = 1.0;        // STORM
-        else if (weatherType === 1) wetness = 0.65;   // DRIZZLE
+        else if (weatherType === 1) wetness = 0.55;   // DRIZZLE
         else if (weatherType === 2) wetness = 0.85;   // CLOUDY DAY STORM
 
         this._updateWheelStatesInPlace();
 
         if (isWet) {
-            const puddleFactor = 1.25; // Optimized constant puddle boost
+            const puddleFactor = 1.35; // Optimized water accumulation boost
 
-            // 1. UPDATE WET TIRE TRACKS ON ROAD SURFACE
+            // 1. UPDATE WET TIRE TRACK DECAL RIBBONS ON ROAD SURFACE
             this.wetTracks.update(dt, this.wheelStates, wetness, speedKmh);
 
-            // 2. SPAWN & UPDATE WATER DISPLACEMENT SPRAY
-            if (speedKmh > 3.0 && wetness > 0.05) {
-                const countPerWheel = Math.random() < Math.min(speedKmh / 40.0, 1.8) * wetness ? 1 : 0;
-                if (countPerWheel > 0) {
-                    for (let w = 0; w < 4; w++) {
-                        this.waterSpray.spawnSpray(this.wheelStates[w], speedKmh, wetness, puddleFactor, countPerWheel);
-                    }
+            // 2. SPAWN & UPDATE WATER DISPLACEMENT SPRAY (SPEED-SCALED DISPLACEMENT RATE)
+            // Speed ↑ => spray amount ↑, trail length ↑, velocity ↑
+            const sprayRate = Math.min(Math.floor(1 + (speedKmh / 35.0) * wetness), 5);
+            const mistRate = Math.min(Math.floor(1 + (speedKmh / 45.0) * wetness), 4);
+
+            if (speedKmh > 2.0 && wetness > 0.05) {
+                for (let w = 0; w < 4; w++) {
+                    this.waterSpray.spawnSpray(this.wheelStates[w], speedKmh, wetness, puddleFactor, sprayRate);
                 }
             }
             this.waterSpray.update(dt, windVector);
 
             // 3. SPAWN & UPDATE WHEEL MIST PLUME
-            if (speedKmh > 15.0 && wetness > 0.05) {
-                const countPerWheel = Math.random() < Math.min(speedKmh / 50.0, 1.2) * wetness ? 1 : 0;
-                if (countPerWheel > 0) {
-                    for (let w = 0; w < 4; w++) {
-                        this.mistPlume.spawnMist(this.wheelStates[w], speedKmh, wetness, countPerWheel);
-                    }
+            if (speedKmh > 8.0 && wetness > 0.05) {
+                for (let w = 0; w < 4; w++) {
+                    this.mistPlume.spawnMist(this.wheelStates[w], speedKmh, wetness, mistRate);
                 }
             }
             this.mistPlume.update(dt, windVector, this.time);

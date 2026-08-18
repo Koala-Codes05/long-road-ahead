@@ -4,19 +4,21 @@ import { WiperController } from './windshield/WiperController.js';
 import { RainVolume3D } from './particles/RainVolume3D.js';
 import { FarRainPoints } from './particles/FarRainPoints.js';
 import { TireMist } from './particles/TireMist.js';
+import { RoadImpactSplashes } from './particles/RoadImpactSplashes.js';
 import { WetRoadManager } from './materials/WetRoadManager.js';
 import { VolumetricClouds } from './materials/VolumetricClouds.js';
 import { LightningSystem } from './lighting/LightningSystem.js';
 import { RainLighting } from './lighting/RainLighting.js';
+import { VolumetricAtmosphericFog } from './lighting/VolumetricAtmosphericFog.js';
 
 /**
  * WeatherSystem — AAA Driveclub-style Multi-Tiered Weather Engine Orchestrator.
- * Composes specialized modular subsystems:
- *  - 3D Camera-Relative Rain Particle Volume (RainVolume3D & FarRainPoints)
- *  - Dynamic Lighting & Headlight Cones (RainLighting & LightningSystem)
- *  - PBR Wet Asphalt Optics & Porosity Darkening (WetRoadManager)
- *  - 2D Screen-Space Glass Refraction & Wiper Swath Physics (WindshieldPass & WiperController)
- *  - Tire Splash Spray & Volumetric Night Cloud Layer (TireMist & VolumetricClouds)
+ * Composes specialized modular subsystems across 5 Rain Layers:
+ *  1. Distant Rain (FarRainPoints & Background Rain Sheets)
+ *  2. Midground Rain (RainVolume3D & Ambient Particle Droplets)
+ *  3. Foreground Streaks (High-Velocity Camera Rain Needles)
+ *  4. Camera Droplets (WindshieldPass 2D Screen Refraction & Wiper Physics)
+ *  5. Road Impact (RoadImpactSplashes Instanced Road Surface Splashes & Water Ripples)
  */
 export class WeatherSystem {
     constructor(scene, vehicle, world, composer, skyController = null) {
@@ -45,14 +47,16 @@ export class WeatherSystem {
         // 2. Lighting & Storm Controller
         this.rainLighting = new RainLighting(this.vehicle, this.world);
         this.lightningSystem = new LightningSystem(this.rainPass);
+        this.atmosphericFog = new VolumetricAtmosphericFog(this.scene, this.vehicle);
 
         // 3. PBR Wet Surface & Cloud Layer
         this.wetRoadManager = new WetRoadManager(this.world);
         this.cloudSystem = new VolumetricClouds(this.scene);
 
-        // 4. 3D Particle Volume Systems
+        // 4. Multi-Tiered Rain Systems
         this.rainVolume3D = new RainVolume3D(this.scene, this.rainLighting);
         this.farRainPoints = new FarRainPoints(this.scene);
+        this.roadSplashes = new RoadImpactSplashes(this.scene);
         this.tireMist = new TireMist(this.scene, this.vehicle, this.world);
 
         // 5. 2D Glass Droplets & Auto-Wiper Physics
@@ -86,6 +90,9 @@ export class WeatherSystem {
         this.windshieldPass.setWeatherType(type);
         this.lightningSystem.setWeatherType(type);
         this.wetRoadManager.updatePreset(type);
+        if (this.atmosphericFog) {
+            this.atmosphericFog.updatePreset(type);
+        }
 
         const currentMode = this.rainModes[this.rainModeIndex];
         this.wiperController.applyWeatherPreset(type, currentMode);
@@ -97,6 +104,8 @@ export class WeatherSystem {
         let lightMul = 1.0;
         let vehicleEnvIntensity = 1.0;
         let vehiclePaintDarkening = 1.0;
+        let coolFillInt = 2.2;
+        let warmBounceInt = 1.8;
 
         if (this.scene) {
             if (type === 0) { // STORM
@@ -106,8 +115,10 @@ export class WeatherSystem {
                     this.scene.fog.density = 0.0068;
                 }
                 lightMul = 0.35;             // Dim global scene lighting for heavy storm
-                vehicleEnvIntensity = 0.22;   // 78% reduction in car body HDRI reflection glow
-                vehiclePaintDarkening = 0.50; // Darken car paint to match wet storm asphalt absorption
+                vehicleEnvIntensity = 0.75;   // Preserve rich car body specular reflection highlights
+                vehiclePaintDarkening = 0.88; // Keep Ferrari red paint readable against dark wet asphalt
+                coolFillInt = 2.5;            // Slightly boosted cool top/front fill in storm
+                warmBounceInt = 2.1;          // Boosted warm road bounce to separate sills from road
             } else if (this.weatherType === 1) { // DRIZZLE
                 this.scene.background.setHex(0x0c1424);
                 if (this.scene.fog) {
@@ -115,8 +126,10 @@ export class WeatherSystem {
                     this.scene.fog.density = 0.0050;
                 }
                 lightMul = 0.60;
-                vehicleEnvIntensity = 0.45;
-                vehiclePaintDarkening = 0.72;
+                vehicleEnvIntensity = 0.85;
+                vehiclePaintDarkening = 0.92;
+                coolFillInt = 2.2;
+                warmBounceInt = 1.8;
             } else if (this.weatherType === 2) { // CLOUDY DAY (DAYTIME STORM)
                 this.scene.background.setHex(0x8093a4);
                 if (this.scene.fog) {
@@ -124,8 +137,10 @@ export class WeatherSystem {
                     this.scene.fog.density = 0.0050;
                 }
                 lightMul = 1.6;
-                vehicleEnvIntensity = 1.35;
-                vehiclePaintDarkening = 0.65;
+                vehicleEnvIntensity = 1.25;
+                vehiclePaintDarkening = 0.95;
+                coolFillInt = 1.8;
+                warmBounceInt = 1.4;
             } else { // CLEAR
                 this.scene.background.setHex(0x04060c);
                 if (this.scene.fog) {
@@ -135,6 +150,8 @@ export class WeatherSystem {
                 lightMul = 1.0;
                 vehicleEnvIntensity = 1.0;
                 vehiclePaintDarkening = 1.0;
+                coolFillInt = 2.0;
+                warmBounceInt = 1.6;
             }
 
             // Scale global scene lights (Ambient, Hemisphere, Directional Moonlight)
@@ -156,8 +173,8 @@ export class WeatherSystem {
             }
         }
 
-        // Adjust Vehicle Materials (Body paint, carbon, chassis)
-        this._updateVehicleMaterials(vehicleEnvIntensity, vehiclePaintDarkening);
+        // Adjust Vehicle Materials (Body paint, carbon, chassis) & Localized Fill Lights
+        this._updateVehicleMaterials(vehicleEnvIntensity, vehiclePaintDarkening, coolFillInt, warmBounceInt);
 
         // Update Sky Controller if present
         if (this.skyController) {
@@ -197,8 +214,15 @@ export class WeatherSystem {
         }
     }
 
-    _updateVehicleMaterials(envIntensity, paintDarkening) {
+    _updateVehicleMaterials(envIntensity, paintDarkening, coolFillInt = 2.2, warmBounceInt = 1.8) {
         if (!this.vehicle || !this.vehicle.mesh) return;
+
+        if (this.vehicle.coolTopFrontFill) {
+            this.vehicle.coolTopFrontFill.intensity = coolFillInt;
+        }
+        if (this.vehicle.warmRoadBounce) {
+            this.vehicle.warmRoadBounce.intensity = warmBounceInt;
+        }
 
         this.vehicle.mesh.traverse((child) => {
             if (child.isMesh && child.material) {
@@ -213,21 +237,22 @@ export class WeatherSystem {
                             mat.userData.baseColor = mat.color.clone();
                         }
                         mat.color.copy(mat.userData.baseColor).multiplyScalar(paintDarkening);
-                        mat.needsUpdate = true;
                     }
                 });
             }
         });
     }
 
-    update(dt, cameraMode = 0, camera = null) {
+    update(dt, cameraMode = 0, camera = null, renderer = null) {
         this.clockTime += dt;
 
         // Ensure car materials are updated if GLTF model finishes loading asynchronously
         if (this.vehicle && this.vehicle.isGltfLoaded && !this._gltfMatUpdated) {
-            const envInt = this.weatherType === 0 ? 0.22 : (this.weatherType === 1 ? 0.45 : 1.0);
-            const paintDark = this.weatherType === 0 ? 0.50 : (this.weatherType === 1 ? 0.72 : 1.0);
-            this._updateVehicleMaterials(envInt, paintDark);
+            const envInt = this.weatherType === 0 ? 0.75 : (this.weatherType === 1 ? 0.85 : 1.0);
+            const paintDark = this.weatherType === 0 ? 0.88 : (this.weatherType === 1 ? 0.92 : 1.0);
+            const coolFill = this.weatherType === 0 ? 2.5 : (this.weatherType === 1 ? 2.2 : 2.0);
+            const warmBounce = this.weatherType === 0 ? 2.1 : (this.weatherType === 1 ? 1.8 : 1.6);
+            this._updateVehicleMaterials(envInt, paintDark, coolFill, warmBounce);
             this._gltfMatUpdated = true;
         }
 
@@ -253,10 +278,19 @@ export class WeatherSystem {
 
         // Update Subsystems
         this.rainLighting.update(dt);
+        if (this.wetRoadManager) {
+            this.wetRoadManager.update(dt, renderer, camera);
+        }
+        if (this.atmosphericFog) {
+            this.atmosphericFog.update(dt, camera, this.weatherType, this.windVector);
+        }
 
         const targetIntensity = this.weatherType === 0 ? 1.0 : (this.weatherType === 1 ? 0.45 : 0.0);
         this.rainVolume3D.update(dt, camera, this.clockTime, targetIntensity, this.windVector, cameraMode);
         this.farRainPoints.update(dt, camera, this.clockTime, targetIntensity, this.windVector, cameraMode);
+        if (this.roadSplashes) {
+            this.roadSplashes.update(dt, camera, this.clockTime, targetIntensity);
+        }
 
         this.tireMist.update(dt, this.weatherType, this.windVector);
         this.cloudSystem.update(dt, camera ? camera.position : carPos);
@@ -272,12 +306,6 @@ export class WeatherSystem {
             this.rainPass.uniforms.uDropBlurAmount.value = isThirdPerson ? 0.005 : 0.03;
             this.rainPass.uniforms.uMinRefraction.value = isThirdPerson ? 0.002 : 0.005;
             this.rainPass.uniforms.uRefractionDelta.value = isThirdPerson ? 0.008 : 0.020;
-        }
-
-        // Animate water ripple normal map offset
-        if (this.wetRoadManager.rippleNormalTex) {
-            this.wetRoadManager.rippleNormalTex.offset.x += dt * 0.02;
-            this.wetRoadManager.rippleNormalTex.offset.y += dt * 0.015;
         }
     }
 }
