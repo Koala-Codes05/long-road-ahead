@@ -305,16 +305,18 @@ export class World {
         // Crisp emissive road line materials for night driving visibility
         this.whiteLineMat = new THREE.MeshStandardMaterial({
             color: 0xffffff,
-            emissive: 0xdddddd,
-            emissiveIntensity: 0.55,
-            roughness: 0.3,
+            emissive: 0xffffff,
+            emissiveIntensity: 0.75,
+            roughness: 0.2,
+            metalness: 0.1,
             side: THREE.DoubleSide,
         });
         this.yellowLineMat = new THREE.MeshStandardMaterial({
-            color: 0xffaa00,
-            emissive: 0xff8800,
-            emissiveIntensity: 0.75,
-            roughness: 0.3,
+            color: 0xffbb00,
+            emissive: 0xffaa00,
+            emissiveIntensity: 0.90,
+            roughness: 0.2,
+            metalness: 0.1,
             side: THREE.DoubleSide,
         });
         this.guardrailMat = new THREE.MeshStandardMaterial({
@@ -541,6 +543,18 @@ export class World {
             [-12.0, 12.0].forEach(xOff => {
                 addQuad(yellowGeos, p0, p1, nx0, nz0, nx1, nz1, z0, z1, xOff, 0.26, 0.024);
             });
+
+            // 3. Center Double Solid White Lines & Dashed Lane Dividers
+            [-0.22, 0.22].forEach(xOff => {
+                addQuad(whiteGeos, p0, p1, nx0, nz0, nx1, nz1, z0, z1, xOff, 0.16, 0.025);
+            });
+
+            const dashCycle = Math.floor((-z0) / 6.0) % 2;
+            if (dashCycle === 0) {
+                [-6.0, 6.0].forEach(xOff => {
+                    addQuad(whiteGeos, p0, p1, nx0, nz0, nx1, nz1, z0, z1, xOff, 0.20, 0.025);
+                });
+            }
 
             // 3. Outer Shoulder W-Beam Guardrails & Posts
             [-12.8, 12.8].forEach(xOff => {

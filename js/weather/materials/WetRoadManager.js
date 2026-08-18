@@ -63,6 +63,14 @@ export class WetRoadManager {
             roadMat.bumpScale = 0.015; // Drenched water layer smoothes micro-bump relief
             roadMat.normalScale.set(0.85, 0.85);
             roadMat.color.setHex(0x666666); // Deep drenched wet asphalt tint
+            if (this.world.whiteLineMat) {
+                this.world.whiteLineMat.emissiveIntensity = 1.8;
+                this.world.whiteLineMat.emissive.setHex(0xffffff);
+            }
+            if (this.world.yellowLineMat) {
+                this.world.yellowLineMat.emissiveIntensity = 2.0;
+                this.world.yellowLineMat.emissive.setHex(0xffaa00);
+            }
         } else if (weatherType === 1) { // DRIZZLE
             roadMat.roughness = 0.08;
             roadMat.metalness = 0.80;
@@ -70,6 +78,14 @@ export class WetRoadManager {
             roadMat.bumpScale = 0.025;
             roadMat.normalScale.set(0.75, 0.75);
             roadMat.color.setHex(0x999999);
+            if (this.world.whiteLineMat) {
+                this.world.whiteLineMat.emissiveIntensity = 1.1;
+                this.world.whiteLineMat.emissive.setHex(0xdddddd);
+            }
+            if (this.world.yellowLineMat) {
+                this.world.yellowLineMat.emissiveIntensity = 1.3;
+                this.world.yellowLineMat.emissive.setHex(0xff9900);
+            }
         } else { // CLEAR / DRY
             roadMat.roughness = 0.50;
             roadMat.metalness = 0.20;
@@ -77,6 +93,14 @@ export class WetRoadManager {
             roadMat.bumpScale = 0.04; // Dry asphalt full height relief
             roadMat.normalScale.set(0.8, 0.8);
             roadMat.color.setHex(0xffffff); // Full base color map
+            if (this.world.whiteLineMat) {
+                this.world.whiteLineMat.emissiveIntensity = 0.3;
+                this.world.whiteLineMat.emissive.setHex(0x888888);
+            }
+            if (this.world.yellowLineMat) {
+                this.world.yellowLineMat.emissiveIntensity = 0.4;
+                this.world.yellowLineMat.emissive.setHex(0xbb7700);
+            }
         }
 
         roadMat.needsUpdate = true;

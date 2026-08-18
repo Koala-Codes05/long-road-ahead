@@ -7,7 +7,7 @@ import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
 
 import { Vehicle } from './vehicle.js';
-import { World, getRoadZoneInfo } from './world.js';
+import { World, getRoadZoneInfo, getRoadPoint } from './world.js';
 import { InputManager } from './input.js';
 import { WeatherSystem } from './weather.js';
 import { CloudSystem } from './clouds.js';
@@ -15,6 +15,7 @@ import { SpeedTrailSystem } from './speedTrail.js';
 import { createMotionBlurPass } from './motionBlurShader.js';
 import { createFilmGrainPass } from './filmGrainShader.js';
 import { Minimap } from './minimap.js';
+import { AudioEngine } from './audio.js';
 
 /* =============================================
    SCENE (Moody Night Fog & Atmosphere)
@@ -33,29 +34,233 @@ const camera = new THREE.PerspectiveCamera(
 camera.position.set(0, 4, 10);
 
 /* =============================================
-   RENDERER
+   RENDERER (Clean Canvas Initialization)
    ============================================= */
-const renderer = new THREE.WebGLRenderer({
-    antialias: true,
-    powerPreference: 'high-performance',
-    precision: 'mediump',
-    stencil: false,
-    depth: true,
-});
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Ultra-smooth soft shadows
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.18; // Balanced HDR exposure curve
-renderer.outputColorSpace = THREE.SRGBColorSpace;
-document.body.appendChild(renderer.domElement);
+function getCleanCanvas() {
+    let old = document.getElementById('webgl-canvas');
+    let fresh = document.createElement('canvas');
+    fresh.id = 'webgl-canvas';
+    fresh.width = window.innerWidth;
+    fresh.height = window.innerHeight;
+    fresh.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;display:block;z-index:0;';
+    if (old && old.parentNode) {
+        old.parentNode.replaceChild(fresh, old);
+    } else {
+        document.body.insertBefore(fresh, document.body.firstChild);
+    }
+    return fresh;
+}
+
+function createFreshWebGLRenderer() {
+    const presetConfigs = [
+        // Preset 1: Pristine DOM canvas with High Performance
+        (c) => ({ canvas: c, antialias: true, powerPreference: 'high-performance' }),
+        // Preset 2: Pristine DOM canvas with Default Power & Antialias
+        (c) => ({ canvas: c, antialias: true, powerPreference: 'default' }),
+        // Preset 3: Pristine DOM canvas with Default Power, No Antialias
+        (c) => ({ canvas: c, antialias: false, powerPreference: 'default' }),
+        // Preset 4: Pristine DOM canvas with Low Power Mode
+        (c) => ({ canvas: c, antialias: false, powerPreference: 'low-power' }),
+        // Preset 5: Medium precision & depth options
+        (c) => ({ canvas: c, antialias: false, precision: 'mediump', powerPreference: 'low-power', stencil: false, depth: true }),
+        // Preset 6: preserveDrawingBuffer false & alpha false
+        (c) => ({ canvas: c, antialias: false, alpha: false, preserveDrawingBuffer: false }),
+        // Preset 7: Standard Three.js auto-allocated canvas with Default Power
+        () => ({ antialias: true, powerPreference: 'default' }),
+        // Preset 8: Standard Three.js auto-allocated canvas with Low Power
+        () => ({ antialias: false, powerPreference: 'low-power' }),
+        // Preset 9: Bare minimum options
+        () => ({ antialias: false })
+    ];
+
+    for (let i = 0; i < presetConfigs.length; i++) {
+        try {
+            const freshCanvas = getCleanCanvas();
+            const options = {
+                stencil: false,
+                failIfMajorPerformanceCaveat: false,
+                ...presetConfigs[i](freshCanvas)
+            };
+            const r = new THREE.WebGLRenderer(options);
+            if (r && r.getContext() && !r.getContext().isContextLost()) {
+                console.log(`✅ WebGL Renderer initialized successfully with preset #${i + 1}`);
+                return r;
+            }
+        } catch (err) {
+            console.warn(`WebGL preset #${i + 1} failed:`, err);
+        }
+    }
+    return null;
+}
+
+let renderer = null;
+let composer = null;
+let bloomPass = null;
+let motionBlurPass = null;
+let filmGrainPass = null;
+
+function setupRendererSettings(r) {
+    if (!r) return;
+    if (r.domElement && !r.domElement.parentNode) {
+        r.domElement.id = 'webgl-canvas';
+        r.domElement.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;display:block;z-index:0;';
+        document.body.insertBefore(r.domElement, document.body.firstChild);
+    }
+    r.setSize(window.innerWidth, window.innerHeight);
+    r.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
+    r.shadowMap.enabled = true;
+    r.shadowMap.type = THREE.PCFSoftShadowMap; // Ultra-smooth soft shadows
+    r.toneMapping = THREE.ACESFilmicToneMapping;
+    r.toneMappingExposure = 1.18; // Balanced HDR exposure curve
+    r.outputColorSpace = THREE.SRGBColorSpace;
+
+    r.domElement.addEventListener('webglcontextlost', (event) => {
+        event.preventDefault();
+        console.warn('WebGL context lost. Displaying context recovery overlay...');
+        showWebGLContextErrorUI('WebGL Context Lost', 'Graphics context was lost by the GPU/browser. Attempting automatic recovery...');
+    }, false);
+
+    r.domElement.addEventListener('webglcontextrestored', () => {
+        console.log('WebGL context restored successfully.');
+        hideWebGLContextErrorUI();
+    }, false);
+}
+
+function initComposerAndPasses(r) {
+    if (!r) return null;
+    const comp = new EffectComposer(r);
+    comp.addPass(new RenderPass(scene, camera));
+
+    bloomPass = new UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        0.45, // strength
+        0.40, // radius
+        0.85, // threshold
+    );
+    comp.addPass(bloomPass);
+
+    motionBlurPass = createMotionBlurPass();
+    comp.addPass(motionBlurPass);
+
+    filmGrainPass = createFilmGrainPass();
+    comp.addPass(filmGrainPass);
+
+    return comp;
+}
+
+let recoveryTimer = null;
+let countdownVal = 5;
+
+function showWebGLContextErrorUI(titleStr, messageStr) {
+    let overlay = document.getElementById('webgl-error-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'webgl-error-overlay';
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(8,12,20,0.95);backdrop-filter:blur(10px);z-index:999999;display:flex;align-items:center;justify-content:center;color:#fff;font-family:Inter,Segoe UI,sans-serif;padding:20px;box-sizing:border-box;';
+        document.body.appendChild(overlay);
+    }
+
+    overlay.innerHTML = `
+        <div style="background:rgba(20,26,38,0.92);border:1px solid rgba(255,80,80,0.4);box-shadow:0 20px 60px rgba(0,0,0,0.8);border-radius:16px;padding:36px;max-width:520px;width:100%;text-align:center;">
+            <div style="font-size:48px;margin-bottom:12px;">⚠️</div>
+            <h2 style="margin:0 0 10px;font-size:22px;color:#ff5555;letter-spacing:0.5px;">${titleStr || 'WebGL Context Initialization Error'}</h2>
+            <p style="color:#cbd5e1;line-height:1.6;font-size:14px;margin-bottom:20px;">
+                ${messageStr || 'Could not create a WebGL 3D graphics context in your browser. This typically occurs when browser Hardware Acceleration is disabled or graphics drivers are temporarily busy.'}
+            </p>
+            <div style="background:rgba(0,0,0,0.4);border-radius:8px;padding:14px;text-align:left;font-size:13px;color:#94a3b8;margin-bottom:24px;line-height:1.5;">
+                <strong style="color:#e2e8f0;display:block;margin-bottom:6px;">💡 Troubleshooting Steps:</strong>
+                • Chrome/Edge: Go to <code style="color:#38bdf8;">chrome://settings/system</code> & enable <b>"Use graphics acceleration when available"</b>.<br>
+                • Firefox: Go to <code style="color:#38bdf8;">about:config</code> & ensure <code>webgl.disabled</code> is <b>false</b>.<br>
+                • Restart your browser or graphics drivers if context remains lost.
+            </div>
+            <div style="display:flex;gap:12px;justify-content:center;">
+                <button id="webgl-retry-btn" style="background:linear-gradient(135deg, #ff4444, #cc1111);color:#fff;border:none;padding:12px 24px;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer;box-shadow:0 4px 14px rgba(255,68,68,0.4);transition:all 0.2s;">
+                    🔄 RETRY INITIALIZATION
+                </button>
+            </div>
+            <div id="webgl-auto-retry-msg" style="margin-top:14px;font-size:12px;color:#64748b;">
+                Auto-retrying in <span id="webgl-countdown">5</span> seconds...
+            </div>
+        </div>
+    `;
+
+    const retryBtn = document.getElementById('webgl-retry-btn');
+    if (retryBtn) retryBtn.onclick = () => attemptWebGLRecovery();
+
+    clearInterval(recoveryTimer);
+    countdownVal = 5;
+    const cdEl = document.getElementById('webgl-countdown');
+    recoveryTimer = setInterval(() => {
+        countdownVal--;
+        if (cdEl) cdEl.textContent = countdownVal;
+        if (countdownVal <= 0) {
+            clearInterval(recoveryTimer);
+            attemptWebGLRecovery();
+        }
+    }, 1000);
+}
+
+function hideWebGLContextErrorUI() {
+    clearInterval(recoveryTimer);
+    const overlay = document.getElementById('webgl-error-overlay');
+    if (overlay) overlay.remove();
+}
+
+function attemptWebGLRecovery() {
+    console.log('🔄 Attempting WebGL context recovery...');
+    const newRenderer = createFreshWebGLRenderer();
+    if (newRenderer) {
+        renderer = newRenderer;
+        window.__THREE_RENDERER__ = renderer;
+        setupRendererSettings(renderer);
+        composer = initComposerAndPasses(renderer);
+
+        if (typeof weather !== 'undefined' && weather) {
+            weather.composer = composer;
+            if (weather.rainPass && composer) {
+                composer.addPass(weather.rainPass);
+            }
+        }
+
+        hideWebGLContextErrorUI();
+        console.log('🎉 WebGL Context initialization recovered successfully!');
+        return true;
+    } else {
+        console.warn('WebGL context recovery attempt failed.');
+        showWebGLContextErrorUI('WebGL Acceleration Unavailable', 'WebGL context creation is currently blocked by browser or system settings.');
+        return false;
+    }
+}
+
+renderer = createFreshWebGLRenderer();
+if (renderer) {
+    window.__THREE_RENDERER__ = renderer;
+    setupRendererSettings(renderer);
+    composer = initComposerAndPasses(renderer);
+} else {
+    console.error('All WebGL context initialization attempts failed.');
+    showWebGLContextErrorUI('WebGL Context Initialization Error', 'Could not create a WebGL 3D graphics context in your browser.');
+}
+
+if (import.meta.hot) {
+    import.meta.hot.dispose(() => {
+        if (renderer) {
+            try {
+                const gl = renderer.getContext();
+                const loseCtx = gl ? gl.getExtension('WEBGL_lose_context') : null;
+                if (loseCtx) loseCtx.loseContext();
+                renderer.dispose();
+            } catch (e) {}
+        }
+    });
+}
 
 /* =============================================
    HDR ENVIRONMENT MAP LOADING (Night HDRI)
    ============================================= */
-function createHDRNightEnvironment(renderer) {
-    const pmremGenerator = new THREE.PMREMGenerator(renderer);
+function createHDRNightEnvironment(r) {
+    if (!r) return null;
+    const pmremGenerator = new THREE.PMREMGenerator(r);
     pmremGenerator.compileEquirectangularShader();
 
     const envScene = new THREE.Scene();
@@ -118,28 +323,10 @@ exrLoader.load('assets/hdr/night time/NightSkyHDRI003_4K_HDR.exr', (hdrTexture) 
     console.log('Night EXR HDRI loaded successfully');
 }, undefined, (err) => {
     console.warn('EXRLoader failed, using procedural night environment fallback:', err);
-    scene.environment = createHDRNightEnvironment(renderer);
+    if (renderer) {
+        scene.environment = createHDRNightEnvironment(renderer);
+    }
 });
-
-/* =============================================
-   POST-PROCESSING (Bloom & Speed Motion Blur)
-   ============================================= */
-const composer = new EffectComposer(renderer);
-composer.addPass(new RenderPass(scene, camera));
-
-const bloomPass = new UnrealBloomPass(
-    new THREE.Vector2(window.innerWidth, window.innerHeight),
-    0.45, // strength
-    0.40, // radius
-    0.85, // threshold
-);
-composer.addPass(bloomPass);
-
-const motionBlurPass = createMotionBlurPass();
-composer.addPass(motionBlurPass);
-
-const filmGrainPass = createFilmGrainPass();
-composer.addPass(filmGrainPass);
 
 /* =============================================
    LIGHTING (Moody Lowered Moonlight & Warm Sodium Ambient Sky)
@@ -172,6 +359,42 @@ scene.add(cameraDiffuseLight);
 
 const cameraLight = new THREE.PointLight(0xddeeff, 2.8, 120, 1.2);
 scene.add(cameraLight);
+
+/* =============================================
+   DYNAMIC STREETLAMP OVERHEAD ILLUMINATION
+   Highlights vehicle & road with warm amber light when passing under lamp posts
+   ============================================= */
+const streetlampLight = new THREE.PointLight(0xffa644, 0.0, 36, 1.4);
+scene.add(streetlampLight);
+
+function updateStreetlampLighting(dt) {
+    if (!vehicle || !vehicle.mesh) return;
+    const carPos = vehicle.mesh.position;
+
+    // Find nearest roadside lamp post (placed every 85m)
+    const cycle = Math.round((-carPos.z) / 85.0);
+    const lampZ_base = -cycle * 85.0;
+    const lampPoint = getRoadPoint(lampZ_base);
+    const lampNx = Math.cos(lampPoint.angle);
+    const lampNz = Math.sin(lampPoint.angle);
+    const side = (cycle % 2 === 0 ? -11.6 : 11.6);
+
+    const lampX = lampPoint.x + lampNx * (side * 0.55); // Overhanging fixture towards road
+    const lampY = 6.2;
+    const lampZ = lampZ_base + lampNz * (side * 0.55);
+
+    const dx = carPos.x - lampX;
+    const dz = carPos.z - lampZ;
+    const distToLamp = Math.hypot(dx, dz);
+
+    // Illumination radius: peak light when right under lamp post (d < 24m)
+    const proximity = THREE.MathUtils.clamp(1.0 - distToLamp / 24.0, 0.0, 1.0);
+    const smoothProx = Math.pow(proximity, 1.3);
+    const baseTargetIntensity = (weather.weatherType === 0 ? 28.0 : 36.0) * smoothProx;
+
+    streetlampLight.position.set(lampX, lampY, lampZ);
+    streetlampLight.intensity = THREE.MathUtils.lerp(streetlampLight.intensity, baseTargetIntensity, dt * 10.0);
+}
 
 /* =============================================
    PHOTOREALISTIC ANAMORPHIC LENS FLARE SYSTEM
@@ -399,6 +622,9 @@ const speedTrailSystem = new SpeedTrailSystem(scene, vehicle.mesh);
 // Need for Speed / Driveclub Circular Minimap Radar HUD
 const minimap = new Minimap();
 
+// Ferrari Engine Sound & Audio Controller
+const audioEngine = new AudioEngine();
+
 // Weather Preset Switcher UI
 document.querySelectorAll('.weather-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -591,20 +817,24 @@ function updateCamera(dt) {
     camera.updateProjectionMatrix();
 
     // Bloom ramps with speed (balanced for subtle glow)
-    bloomPass.strength = 0.45 + sr * 0.4;
+    if (bloomPass) bloomPass.strength = 0.45 + sr * 0.4;
 
     // Dynamic High-Speed Radial Motion Blur
-    const nitroBlur = vehicle.isNitro ? 0.08 : 0.0;
-    const targetBlur = Math.pow(sr, 1.3) * 0.12 + nitroBlur;
-    motionBlurPass.uniforms.uStrength.value = THREE.MathUtils.lerp(
-        motionBlurPass.uniforms.uStrength.value,
-        targetBlur,
-        dt * 10.0
-    );
+    if (motionBlurPass) {
+        const nitroBlur = vehicle.isNitro ? 0.08 : 0.0;
+        const targetBlur = Math.pow(sr, 1.3) * 0.12 + nitroBlur;
+        motionBlurPass.uniforms.uStrength.value = THREE.MathUtils.lerp(
+            motionBlurPass.uniforms.uStrength.value,
+            targetBlur,
+            dt * 10.0
+        );
+    }
 
     // Dynamic 35mm Analog Film Grain
-    filmGrainPass.uniforms.uTime.value += dt;
-    filmGrainPass.uniforms.uSpeedBoost.value = sr;
+    if (filmGrainPass) {
+        filmGrainPass.uniforms.uTime.value += dt;
+        filmGrainPass.uniforms.uSpeedBoost.value = sr;
+    }
 
     // Move sky dome & overhead camera lights (100m diffuse coverage, zero specular glare on car)
     sky.position.copy(camera.position);
@@ -615,11 +845,19 @@ function updateCamera(dt) {
     moon.target.position.copy(vehicle.mesh.position);
     moon.target.updateMatrixWorld();
 
-    // Weather-dependent celestial visibility
+    // Weather-dependent celestial & overhead ambient lighting
     const isOvercastStorm = (weather.weatherType === 0);
+    const isDrizzle = (weather.weatherType === 1);
+
     moonMesh.visible = !isOvercastStorm;
     moonLensflare.visible = !isOvercastStorm;
-    moon.intensity = isOvercastStorm ? 0.20 : 0.40;
+    moon.intensity = isOvercastStorm ? 0.15 : (isDrizzle ? 0.28 : 0.40);
+
+    // Dim overhead lights during storm to match dark overcast atmosphere and prevent vehicle over-exposure
+    const targetDiffInt = isOvercastStorm ? 0.45 : (isDrizzle ? 0.85 : 1.40);
+    const targetCamInt = isOvercastStorm ? 0.85 : (isDrizzle ? 1.70 : 2.80);
+    cameraDiffuseLight.intensity = THREE.MathUtils.lerp(cameraDiffuseLight.intensity, targetDiffInt, dt * 3.5);
+    cameraLight.intensity = THREE.MathUtils.lerp(cameraLight.intensity, targetCamInt, dt * 3.5);
 }
 
 /* =============================================
@@ -768,6 +1006,7 @@ const elLoading = document.getElementById('loading-screen');
 const elHud = document.getElementById('hud');
 
 function startGame() {
+    audioEngine.init();
     if (elLoading.classList.contains('fade-out')) return;
     elLoading.classList.add('fade-out');
     elHud.style.display = 'block';
@@ -778,7 +1017,9 @@ function startGame() {
 
 if (elStartBtn) elStartBtn.addEventListener('click', startGame);
 if (elLoading) elLoading.addEventListener('click', startGame);
+window.addEventListener('click', () => { audioEngine.init(); });
 window.addEventListener('keydown', () => {
+    audioEngine.init();
     if (elLoading && elLoading.style.display !== 'none' && !elLoading.classList.contains('fade-out')) {
         startGame();
     }
@@ -848,14 +1089,18 @@ function animate() {
     world.update(vehicle.mesh.position);
     cloudSystem.update(dt, vehicle.mesh.position);
     weather.update(dt, input.cameraMode, camera);
+    audioEngine.update(vehicle, weather.weatherType !== 3);
 
     const isDrifting = vehicle.isDrifting || input.handbrake || (input.brake && Math.abs(input.steering) > 0.3);
     speedTrailSystem.update(dt, vehicle.getSpeedKmh(), isDrifting, input.brake);
 
     updateCamera(dt);
-    updateHUD();
-
-    composer.render();
+    updateStreetlampLighting(dt);
+    if (composer) {
+        composer.render();
+    } else if (renderer) {
+        renderer.render(scene, camera);
+    }
 }
 animate();
 
@@ -865,6 +1110,6 @@ animate();
 window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    composer.setSize(window.innerWidth, window.innerHeight);
+    if (renderer) renderer.setSize(window.innerWidth, window.innerHeight);
+    if (composer) composer.setSize(window.innerWidth, window.innerHeight);
 });

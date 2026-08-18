@@ -789,8 +789,11 @@ export class Vehicle {
             );
             this.contactShadow.rotation.z = this.heading;
             const speedFade = THREE.MathUtils.clamp(1.0 - Math.abs(this.vLong) / 120.0, 0.72, 1.0);
-            this.contactShadow.material.uniforms.uOpacity.value = 0.62 * speedFade;
+            this.contactShadow.material.uniforms.uOpacity.value = (this.shadowBaseOpacity || 0.62) * speedFade;
         }
+
+        // Dynamic car contrast & material wetness boost during storm
+        this._updateStormContrast(dt, weatherType);
 
         // 4. Wheel Animations & Steering Angle (Separated Transformations)
         const spin = -this.vLong * dt * 3.2;
@@ -834,6 +837,65 @@ export class Vehicle {
 
             // Emit barrier scrape smoke/sparks
             this._emitSmoke(this.mesh.position.x, this.mesh.position.z, 0.85);
+        }
+    }
+
+    _updateStormContrast(dt, weatherType) {
+        const isStorm = (weatherType === 0);
+        const isDrizzle = (weatherType === 1);
+
+        // Storm contrast targets:
+        // - Subdued environment map reflections (0.35 in storm vs 1.00 in clear) so car reflects dark overcast atmosphere without overblowing
+        // - High wet clearcoat gloss (clearcoat 0.95, clearcoatRoughness 0.02)
+        // - Deepened base paint color (0xd11a2a -> 0x6a0a14) so vehicle low-lights are deep dark red under storm skies
+        // - Deepened contact shadow (0.92) & AO opacity (0.95) under car for high visual contrast
+        const targetWetness = isStorm ? 1.0 : (isDrizzle ? 0.45 : 0.0);
+        const targetShadowBase = isStorm ? 0.92 : (isDrizzle ? 0.76 : 0.62);
+        const targetAoBase = isStorm ? 0.95 : (isDrizzle ? 0.78 : 0.62);
+        const targetEnvMapInt = isStorm ? 0.35 : (isDrizzle ? 0.65 : 1.00);
+
+        if (this.currentWetness === undefined) this.currentWetness = 0;
+        this.currentWetness = THREE.MathUtils.lerp(this.currentWetness, targetWetness, dt * 3.5);
+
+        if (this.currentEnvMapInt === undefined) this.currentEnvMapInt = 1.0;
+        this.currentEnvMapInt = THREE.MathUtils.lerp(this.currentEnvMapInt, targetEnvMapInt, dt * 3.5);
+
+        // 1. High-Contrast Ferrari Body Paint (MeshPhysicalMaterial)
+        if (this.bodyMaterial) {
+            this.bodyMaterial.roughness = THREE.MathUtils.lerp(0.25, 0.04, this.currentWetness);
+            this.bodyMaterial.clearcoat = THREE.MathUtils.lerp(0.70, 0.95, this.currentWetness);
+            this.bodyMaterial.clearcoatRoughness = THREE.MathUtils.lerp(0.15, 0.02, this.currentWetness);
+            this.bodyMaterial.envMapIntensity = this.currentEnvMapInt;
+
+            // Rich deep paint tone for high-contrast storm low-lights (prevents vehicle over-brightness)
+            const r = THREE.MathUtils.lerp(0xd1 / 255, 0x6a / 255, this.currentWetness);
+            const g = THREE.MathUtils.lerp(0x1a / 255, 0x0a / 255, this.currentWetness);
+            const b = THREE.MathUtils.lerp(0x2a / 255, 0x14 / 255, this.currentWetness);
+            this.bodyMaterial.color.setRGB(r, g, b);
+        }
+
+        // 2. High-Contrast Procedural Body Materials (Fallback)
+        if (this.proceduralBodyGroup) {
+            this.proceduralBodyGroup.traverse((child) => {
+                if (child.isMesh && child.material) {
+                    if (child.material.envMapIntensity !== undefined) {
+                        child.material.envMapIntensity = this.currentEnvMapInt;
+                    }
+                    if (child.material.roughness !== undefined && child.material.color && child.material.color.getHex() === 0xd11a2a) {
+                        child.material.roughness = THREE.MathUtils.lerp(0.12, 0.04, this.currentWetness);
+                    }
+                }
+            });
+        }
+
+        // 3. Deep Contact Shadow & Ambient Occlusion (AO) Under Car
+        if (this.shadowBaseOpacity === undefined) this.shadowBaseOpacity = 0.62;
+        this.shadowBaseOpacity = THREE.MathUtils.lerp(this.shadowBaseOpacity, targetShadowBase, dt * 3.5);
+
+        if (this.carAO && this.carAO.material && this.carAO.material.uniforms && this.carAO.material.uniforms.uOpacity) {
+            if (this.aoBaseOpacity === undefined) this.aoBaseOpacity = 0.62;
+            this.aoBaseOpacity = THREE.MathUtils.lerp(this.aoBaseOpacity, targetAoBase, dt * 3.5);
+            this.carAO.material.uniforms.uOpacity.value = this.aoBaseOpacity;
         }
     }
 

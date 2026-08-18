@@ -23,7 +23,9 @@ export class WeatherSystem {
 
         // 1. Add GLSL Rain Refraction Pass to EffectComposer
         this.rainPass = createRainPass();
-        this.composer.addPass(this.rainPass);
+        if (this.composer) {
+            this.composer.addPass(this.rainPass);
+        }
 
         // 2. Initialize Lucas Bebber 2D Raindrops Physics Canvas
         this._initRaindropsPhysics();
@@ -303,5 +305,48 @@ export class WeatherSystem {
 
         // 7. Update tire spray mist
         this._updateTireMist(dt, carPos, speed);
+
+        // 8. Dynamic Wet Road Line Emissive Glow Physics (Triggers ONLY when raining AND speed >= 200 KM/H)
+        if (this.world && this.world.whiteLineMat && this.world.yellowLineMat) {
+            const isRaining = (this.weatherType === 0 || this.weatherType === 1);
+            const speedKmh = this.vehicle && this.vehicle.getSpeedKmh ? this.vehicle.getSpeedKmh() : (speed * 3.6);
+
+            // Smooth ramp between 180 KM/H and 200+ KM/H
+            const speedRamp = THREE.MathUtils.clamp((speedKmh - 180.0) / 20.0, 0.0, 1.0);
+            const isGlowActive = isRaining && speedKmh >= 180.0;
+
+            let targetWhiteIntensity = 0.0;
+            let targetYellowIntensity = 0.0;
+            let targetWhiteEmissive = 0x222222;
+            let targetYellowEmissive = 0x442200;
+
+            if (isGlowActive) {
+                if (this.weatherType === 0) { // Heavy Storm Rain at 200+ KM/H
+                    targetWhiteIntensity = 1.8 * speedRamp;
+                    targetYellowIntensity = 2.0 * speedRamp;
+                    targetWhiteEmissive = 0xffffff;
+                    targetYellowEmissive = 0xffaa00;
+                } else if (this.weatherType === 1) { // Drizzle Light Rain at 200+ KM/H
+                    targetWhiteIntensity = 1.1 * speedRamp;
+                    targetYellowIntensity = 1.3 * speedRamp;
+                    targetWhiteEmissive = 0xdddddd;
+                    targetYellowEmissive = 0xff9900;
+                }
+            }
+
+            const lerpSpeed = dt * 4.0;
+            this.world.whiteLineMat.emissiveIntensity = THREE.MathUtils.lerp(
+                this.world.whiteLineMat.emissiveIntensity,
+                targetWhiteIntensity,
+                lerpSpeed
+            );
+            this.world.yellowLineMat.emissiveIntensity = THREE.MathUtils.lerp(
+                this.world.yellowLineMat.emissiveIntensity,
+                targetYellowIntensity,
+                lerpSpeed
+            );
+            this.world.whiteLineMat.emissive.lerp(new THREE.Color(targetWhiteEmissive), lerpSpeed);
+            this.world.yellowLineMat.emissive.lerp(new THREE.Color(targetYellowEmissive), lerpSpeed);
+        }
     }
 }
