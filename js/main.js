@@ -368,15 +368,19 @@ moonHalo.scale.set(110, 110, 1);
 moonMesh.add(moonHalo);
 
 /* =============================================
-   SKY DOME (Moody Foggy Night Sky Shader)
+   SKY DOME (Procedural Multi-Octave Atmospheric Sky & Cloud Shader)
    ============================================= */
 const skyGeo = new THREE.SphereGeometry(400, 32, 32);
 const skyMat = new THREE.ShaderMaterial({
     uniforms: {
-        topColor: { value: new THREE.Color(0x060a14) },
-        bottomColor: { value: new THREE.Color(0x121a28) },
-        offset: { value: 15 },
-        exponent: { value: 0.45 },
+        topColor: { value: new THREE.Color(0x263442) },        // Deep upper zenith dark blue-gray
+        bottomColor: { value: new THREE.Color(0x5c7082) },     // Mid sky slate blue-gray
+        darkCloudColor: { value: new THREE.Color(0x1b2530) },  // Dark dense cloud underbellies
+        lightCloudColor: { value: new THREE.Color(0x9eb3c7) }, // Illuminated cloud tops / silver rim
+        horizonFogColor: { value: new THREE.Color(0x788a9b) }, // Horizon haze matching scene fog
+        uTime: { value: 0.0 },
+        uCloudDensity: { value: 1.40 },
+        uCloudScale: { value: 1.8 },
     },
     vertexShader: `
         varying vec3 vWorldPosition;
@@ -389,18 +393,126 @@ const skyMat = new THREE.ShaderMaterial({
     fragmentShader: `
         uniform vec3 topColor;
         uniform vec3 bottomColor;
-        uniform float offset;
-        uniform float exponent;
+        uniform vec3 darkCloudColor;
+        uniform vec3 lightCloudColor;
+        uniform vec3 horizonFogColor;
+        uniform float uTime;
+        uniform float uCloudDensity;
+        uniform float uCloudScale;
+
         varying vec3 vWorldPosition;
+
+        // Fast GLSL 3D Simplex & FBM noise
+        vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+        vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+        vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
+        vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+
+        float snoise(vec3 v) {
+            const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+            const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+
+            vec3 i  = floor(v + dot(v, C.yyy));
+            vec3 x0 = v - i + dot(i, C.xxx);
+
+            vec3 g = step(x0.yzx, x0.xyz);
+            vec3 l = 1.0 - g;
+            vec3 i1 = min(g.xyz, l.zxy);
+            vec3 i2 = max(g.xyz, l.zxy);
+
+            vec3 x1 = x0 - i1 + C.xxx;
+            vec3 x2 = x0 - i2 + C.yyy;
+            vec3 x3 = x0 - D.yyy;
+
+            i = mod289(i);
+            vec4 p = permute(permute(permute(
+                        i.z + vec4(0.0, i1.z, i2.z, 1.0))
+                    + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+                    + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+
+            float n_ = 0.142857142857;
+            vec3 ns = n_ * D.wyz - D.xzx;
+
+            vec4 j = p - 49.0 * floor(p * ns.z);
+
+            vec4 x_ = floor(j * ns.z);
+            vec4 y_ = floor(j - 7.0 * x_);
+
+            vec4 x = x_ * ns.x + ns.yyyy;
+            vec4 y = y_ * ns.x + ns.yyyy;
+            vec4 h = 1.0 - abs(x) - abs(y);
+
+            vec4 b0 = vec4(x.xy, y.xy);
+            vec4 b1 = vec4(x.zw, y.zw);
+
+            vec4 s0 = floor(b0)*2.0 + 1.0;
+            vec4 s1 = floor(b1)*2.0 + 1.0;
+            vec4 sh = -step(h, vec4(0.0));
+
+            vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
+            vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
+
+            vec3 p0 = vec3(a0.xy, h.x);
+            vec3 p1 = vec3(a0.zw, h.y);
+            vec3 p2 = vec3(a1.xy, h.z);
+            vec3 p3 = vec3(a1.zw, h.w);
+
+            vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
+            p0 *= norm.x;
+            p1 *= norm.y;
+            p2 *= norm.z;
+            p3 *= norm.w;
+
+            vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+            m = m * m;
+            return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+        }
+
+        float fbm(vec3 p) {
+            float total = 0.0;
+            float amp = 0.5;
+            float freq = 1.0;
+            for (int i = 0; i < 4; i++) {
+                total += snoise(p * freq) * amp;
+                freq *= 2.08;
+                amp *= 0.48;
+            }
+            return total;
+        }
+
         void main() {
-            float h = normalize(vWorldPosition + offset).y;
-            gl_FragColor = vec4(
-                mix(bottomColor, topColor, max(pow(max(h, 0.0), exponent), 0.0)),
-                1.0
-            );
+            vec3 normPos = normalize(vWorldPosition);
+            float height = normPos.y; // -1.0 to 1.0
+
+            // Base atmospheric gradient (horizon to upper zenith)
+            float skyGradientFactor = max(height, 0.0);
+            vec3 skyBaseColor = mix(bottomColor, topColor, pow(skyGradientFactor, 0.55));
+
+            // Atmospheric cloud noise coordinates with drifting motion
+            vec3 cloudCoord = vec3(normPos.xz * uCloudScale * 2.2, uTime * 0.012);
+            cloudCoord.y += uTime * 0.006;
+
+            float n1 = fbm(cloudCoord);
+            float n2 = fbm(cloudCoord * 2.1 + vec3(2.3, 1.7, 4.1));
+            float cloudNoise = clamp((n1 + n2 * 0.45 + 0.15) * uCloudDensity, 0.0, 1.0);
+
+            // Contrast between dark cloud undersides & light cloud edges
+            float darkPatch = clamp(fbm(cloudCoord * 0.85 + vec3(4.1, 2.9, 1.2)), 0.0, 1.0);
+            vec3 cloudColor = mix(lightCloudColor, darkCloudColor, darkPatch * 0.75 + 0.25);
+
+            // Mask clouds above horizon line
+            float cloudMask = smoothstep(0.01, 0.40, height);
+            vec3 finalSky = mix(skyBaseColor, cloudColor, cloudNoise * cloudMask * 0.88);
+
+            // Horizon atmospheric haze fading seamlessly into scene fog color
+            float horizonHaze = 1.0 - smoothstep(-0.05, 0.35, max(height, -0.05));
+            finalSky = mix(finalSky, horizonFogColor, horizonHaze * 0.95);
+
+            gl_FragColor = vec4(finalSky, 1.0);
         }
     `,
     side: THREE.BackSide,
+    depthWrite: false,
 });
 const sky = new THREE.Mesh(skyGeo, skyMat);
 scene.add(sky);
@@ -417,7 +529,7 @@ world.init();
 const cloudSystem = new CloudSystem(scene);
 
 // Driveclub Glass Refraction Rain & Wet Surface System
-const weather = new WeatherSystem(scene, vehicle, world, composer);
+const weather = new WeatherSystem(scene, vehicle.mesh, world, composer);
 
 // High-Fidelity Glowing Motion Trail & Speed Ribbon System
 const speedTrailSystem = new SpeedTrailSystem(scene, vehicle.mesh);
@@ -438,10 +550,15 @@ function applyWeatherEnvironment(type) {
     if (type === 0) { // STORM (Overcast Night Storm)
         if (nightHdrTexture) scene.environment = nightHdrTexture;
         scene.background = new THREE.Color(0x080e18);
-        if (scene.fog) { scene.fog.color.setHex(0x080e18); scene.fog.density = 0.0068; }
+        if (scene.fog) { scene.fog.color.setHex(0x080e18); scene.fog.density = 0.0065; }
 
-        skyMat.uniforms.topColor.value.setHex(0x040810);
-        skyMat.uniforms.bottomColor.value.setHex(0x0c1626);
+        skyMat.uniforms.topColor.value.setHex(0x03060c);
+        skyMat.uniforms.bottomColor.value.setHex(0x0a1220);
+        skyMat.uniforms.darkCloudColor.value.setHex(0x020408);
+        skyMat.uniforms.lightCloudColor.value.setHex(0x1a2638);
+        skyMat.uniforms.horizonFogColor.value.setHex(0x080e18);
+        skyMat.uniforms.uCloudDensity.value = 1.50;
+        skyMat.uniforms.uCloudScale.value = 2.0;
 
         ambientMoon.color.setHex(0x334466); ambientMoon.intensity = 0.25;
         ambientSodium.color.setHex(0xff8822); ambientSodium.intensity = 0.20;
@@ -456,10 +573,15 @@ function applyWeatherEnvironment(type) {
     } else if (type === 1) { // DRIZZLE (Moody Night Drizzle)
         if (nightHdrTexture) scene.environment = nightHdrTexture;
         scene.background = new THREE.Color(0x0a101d);
-        if (scene.fog) { scene.fog.color.setHex(0x0a101d); scene.fog.density = 0.0055; }
+        if (scene.fog) { scene.fog.color.setHex(0x0a101d); scene.fog.density = 0.0052; }
 
-        skyMat.uniforms.topColor.value.setHex(0x060a14);
-        skyMat.uniforms.bottomColor.value.setHex(0x121a28);
+        skyMat.uniforms.topColor.value.setHex(0x050912);
+        skyMat.uniforms.bottomColor.value.setHex(0x101a2c);
+        skyMat.uniforms.darkCloudColor.value.setHex(0x060b15);
+        skyMat.uniforms.lightCloudColor.value.setHex(0x22324a);
+        skyMat.uniforms.horizonFogColor.value.setHex(0x0a101d);
+        skyMat.uniforms.uCloudDensity.value = 1.15;
+        skyMat.uniforms.uCloudScale.value = 1.6;
 
         ambientMoon.color.setHex(0x445577); ambientMoon.intensity = 0.40;
         ambientSodium.color.setHex(0xff9933); ambientSodium.intensity = 0.30;
@@ -473,11 +595,16 @@ function applyWeatherEnvironment(type) {
 
     } else if (type === 2) { // CLOUDY DAY (Daytime Storm / Overcast Daytime Rain)
         if (dayHdrTexture) scene.environment = dayHdrTexture;
-        scene.background = new THREE.Color(0x8093a4);
-        if (scene.fog) { scene.fog.color.setHex(0x8093a4); scene.fog.density = 0.0050; }
+        scene.background = new THREE.Color(0x788a9b);
+        if (scene.fog) { scene.fog.color.setHex(0x788a9b); scene.fog.density = 0.0045; }
 
-        skyMat.uniforms.topColor.value.setHex(0x445566);
-        skyMat.uniforms.bottomColor.value.setHex(0xa0b2c4);
+        skyMat.uniforms.topColor.value.setHex(0x263442);        // Deep moody slate zenith
+        skyMat.uniforms.bottomColor.value.setHex(0x5c7082);     // Mid stormy blue-gray
+        skyMat.uniforms.darkCloudColor.value.setHex(0x1b2530);  // Dark turbulent storm patches
+        skyMat.uniforms.lightCloudColor.value.setHex(0x9eb3c7); // Lighter silver cloud tops & breaks
+        skyMat.uniforms.horizonFogColor.value.setHex(0x788a9b); // Horizon fog match
+        skyMat.uniforms.uCloudDensity.value = 1.40;            // High cloud density & variation!
+        skyMat.uniforms.uCloudScale.value = 1.8;
 
         ambientMoon.color.setHex(0x9cb0c4); ambientMoon.intensity = 1.05;
         ambientSodium.color.setHex(0x5c6670); ambientSodium.intensity = 0.35;
@@ -492,10 +619,15 @@ function applyWeatherEnvironment(type) {
     } else { // CLEAR (Night Sky with Moon)
         if (nightHdrTexture) scene.environment = nightHdrTexture;
         scene.background = new THREE.Color(0x04060c);
-        if (scene.fog) { scene.fog.color.setHex(0x04060c); scene.fog.density = 0.0030; }
+        if (scene.fog) { scene.fog.color.setHex(0x04060c); scene.fog.density = 0.0028; }
 
-        skyMat.uniforms.topColor.value.setHex(0x020408);
-        skyMat.uniforms.bottomColor.value.setHex(0x0b1220);
+        skyMat.uniforms.topColor.value.setHex(0x020307);
+        skyMat.uniforms.bottomColor.value.setHex(0x090e1a);
+        skyMat.uniforms.darkCloudColor.value.setHex(0x03050a);
+        skyMat.uniforms.lightCloudColor.value.setHex(0x141d30);
+        skyMat.uniforms.horizonFogColor.value.setHex(0x04060c);
+        skyMat.uniforms.uCloudDensity.value = 0.45;
+        skyMat.uniforms.uCloudScale.value = 1.2;
 
         ambientMoon.color.setHex(0x445577); ambientMoon.intensity = 0.50;
         ambientSodium.color.setHex(0xff9933); ambientSodium.intensity = 0.35;
@@ -714,6 +846,7 @@ function updateCamera(dt) {
 
     // Move sky dome & overhead camera lights (100m diffuse coverage, zero specular glare on car)
     sky.position.copy(camera.position);
+    if (skyMat && skyMat.uniforms.uTime) skyMat.uniforms.uTime.value += dt;
     cameraDiffuseLight.position.set(camera.position.x, camera.position.y + 15, camera.position.z);
     cameraLight.position.set(camera.position.x, camera.position.y + 28, camera.position.z);
 

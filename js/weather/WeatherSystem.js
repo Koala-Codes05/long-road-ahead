@@ -89,6 +89,9 @@ export class WeatherSystem {
 
         const currentMode = this.rainModes[this.rainModeIndex];
         this.wiperController.applyWeatherPreset(type, currentMode);
+        if (this.cloudSystem && this.cloudSystem.setWeather) {
+            this.cloudSystem.setWeather(type);
+        }
 
         // Dynamic Atmosphere, Scene Lighting & Fog Tuning per Preset
         let lightMul = 1.0;

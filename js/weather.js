@@ -199,26 +199,26 @@ export class WeatherSystem {
 
         const mode = this.rainModes[this.rainModeIndex];
         if (mode === 'classic') {
-            this.raindrops.options.minR = 10;
-            this.raindrops.options.maxR = 40;
-            this.raindrops.options.maxDrops = 650;
+            this.raindrops.options.minR = 1.8;
+            this.raindrops.options.maxR = 12.0;
+            this.raindrops.options.maxDrops = 300;
             this.raindrops.options.rainLimit = 4;
-            this.raindrops.options.dropletsSize = [2, 4];
-            this.raindrops.options.trailRate = 1;
+            this.raindrops.options.dropletsSize = [0.6, 2.2];
+            this.raindrops.options.trailRate = 0.8;
         } else if (mode === 'light') {
-            this.raindrops.options.minR = 8;
-            this.raindrops.options.maxR = 28;
-            this.raindrops.options.maxDrops = 360;
+            this.raindrops.options.minR = 1.0;
+            this.raindrops.options.maxR = 7.0;
+            this.raindrops.options.maxDrops = 150;
             this.raindrops.options.rainLimit = 2;
-            this.raindrops.options.dropletsSize = [1.2, 2.8];
-            this.raindrops.options.trailRate = 0.7;
+            this.raindrops.options.dropletsSize = [0.4, 1.4];
+            this.raindrops.options.trailRate = 0.5;
         } else {
-            this.raindrops.options.minR = 12;
-            this.raindrops.options.maxR = 38;
-            this.raindrops.options.maxDrops = 650;
+            this.raindrops.options.minR = 1.4;
+            this.raindrops.options.maxR = 10.0;
+            this.raindrops.options.maxDrops = 250;
             this.raindrops.options.rainLimit = 3;
-            this.raindrops.options.dropletsSize = [2, 4];
-            this.raindrops.options.trailRate = 1;
+            this.raindrops.options.dropletsSize = [0.5, 1.8];
+            this.raindrops.options.trailRate = 0.7;
         }
     }
 

@@ -48,18 +48,18 @@ export const RainShader = {
 
                 if (waterSample.a > 0.01) {
                     float speedFactor = smoothstep(0.0, 70.0, uSpeed);
-                    float speedOpacity = mix(1.0, (uWeatherType == 2 ? 0.40 : 0.80), speedFactor);
-                    float weatherOpacity = (uWeatherType == 1) ? 0.55 : (uWeatherType == 2 ? 0.35 : 0.75);
+                    float speedOpacity = mix(1.0, (uWeatherType == 2 ? 0.30 : 0.65), speedFactor);
+                    float weatherOpacity = (uWeatherType == 1) ? 0.32 : (uWeatherType == 2 ? 0.20 : 0.45);
 
-                    // Extra subtle opacity reduction for 3rd person camera on Cloudy Day
-                    if (uWeatherType == 2 && uCameraMode == 0) {
-                        weatherOpacity *= 0.35;
+                    // Refined subtle opacity reduction for 3rd person camera
+                    if (uCameraMode == 0) {
+                        weatherOpacity *= (uWeatherType == 2 ? 0.45 : 0.60);
                     }
 
                     float dropOpacity = speedOpacity * weatherOpacity;
                     // Red & Green channels store normal vector, Blue stores depth/shine
                     vec2 norm = (waterSample.rg - vec2(0.5)) * 2.0;
-                    norm.x += uGForce.x * 0.08; // Subtle lateral refraction tilt on cornering
+                    norm.x += uGForce.x * 0.05; // Subtle lateral refraction tilt on cornering
                     totalRefraction += norm * waterSample.a * dropOpacity;
                     totalShine += waterSample.b * waterSample.a * dropOpacity;
                     totalAlpha = waterSample.a * dropOpacity;
@@ -72,14 +72,15 @@ export const RainShader = {
 
             vec4 sceneColor = texture2D(tDiffuse, finalUv);
 
-            // 3. Apply restrained drop shine glints & water drop edge shadows
+            // 3. Apply subtle drop shine glints & light clear glass edge response
             if (totalAlpha > 0.01) {
                 float sparkleNoise = fract(sin(dot(floor(uv * vec2(95.0, 53.0)), vec2(12.9898, 78.233))) * 43758.5453);
-                float whiteSparkle = smoothstep(0.82, 0.98, totalShine) * step(0.84, sparkleNoise);
-                vec3 wetTint = vec3(0.45, 0.62, 0.78) * totalShine * 0.18;
-                vec3 brightGlint = vec3(0.95, 0.98, 1.0) * totalShine * whiteSparkle * 0.38;
+                float whiteSparkle = smoothstep(0.88, 0.99, totalShine) * step(0.90, sparkleNoise);
+                vec3 wetTint = vec3(0.55, 0.70, 0.85) * totalShine * 0.12;
+                vec3 brightGlint = vec3(0.95, 0.98, 1.0) * totalShine * whiteSparkle * 0.22;
                 sceneColor.rgb += wetTint + brightGlint;
-                sceneColor.rgb *= (1.0 - (1.0 - totalAlpha) * 0.12);
+                // Soft clear glass attenuation instead of heavy opaque black rings
+                sceneColor.rgb *= (1.0 - totalAlpha * 0.05);
             }
 
             // 4. Storm Lightning Flash effect
