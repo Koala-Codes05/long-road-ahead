@@ -127,9 +127,13 @@ export class AcceleratingSystem {
         this.aLong = netLongForce / this.v.mass;
         this.v.vLong += this.aLong * dt;
 
-        // 9. Handbrake friction drag
-        if (input.handbrake && Math.abs(this.v.vLong) > 2) {
-            this.v.vLong *= (1.0 - 0.45 * dt);
+        // 9. Real Mechanical Handbrake Locking & Brake Drag
+        if (input.handbrake && Math.abs(this.v.vLong) > 0.3) {
+            const handbrakeDecel = 14.0 * Math.sign(this.v.vLong); // 14 m/s² smooth mechanical handbrake deceleration
+            this.v.vLong -= handbrakeDecel * dt;
+            if (Math.sign(this.v.vLong) !== Math.sign(this.v.vLong + handbrakeDecel * dt) && Math.abs(this.v.vLong) < 1.0) {
+                this.v.vLong = 0;
+            }
         }
 
         // 10. Low speed standstill snap

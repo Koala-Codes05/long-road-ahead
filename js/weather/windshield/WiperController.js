@@ -101,65 +101,65 @@ export class WiperController {
         this.raindrops.clearDrops();
         this.raindrops.options.rainMode = rainMode;
 
-        if (type === 0) { // STORM
+        if (type === 0 || type === 2) { // STORM or CLOUDY DAY
             this.raindrops.options.raining = true;
             if (rainMode === 'classic') {
-                this.raindrops.options.minR = 2.2;
-                this.raindrops.options.maxR = 18.0;
-                this.raindrops.options.rainChance = 0.60;
-                this.raindrops.options.rainLimit = 8;
-                this.raindrops.options.dropletsRate = 45;
-                this.raindrops.options.dropletsSize = [1.0, 3.8];
-                this.raindrops.options.maxDrops = 380;
-            } else if (rainMode === 'dynamic') {
-                this.raindrops.options.minR = 1.2;
-                this.raindrops.options.maxR = 10.0;
-                this.raindrops.options.rainChance = 0.35;
-                this.raindrops.options.rainLimit = 5;
-                this.raindrops.options.dropletsRate = 25;
-                this.raindrops.options.dropletsSize = [0.6, 2.0];
-                this.raindrops.options.maxDrops = 220;
-            } else { // HYBRID
                 this.raindrops.options.minR = 1.8;
-                this.raindrops.options.maxR = 16.0;
+                this.raindrops.options.maxR = 12.0;
                 this.raindrops.options.rainChance = 0.50;
-                this.raindrops.options.rainLimit = 7;
-                this.raindrops.options.dropletsRate = 40;
-                this.raindrops.options.dropletsSize = [0.8, 3.2];
-                this.raindrops.options.maxDrops = 350;
+                this.raindrops.options.rainLimit = 6;
+                this.raindrops.options.dropletsRate = 35;
+                this.raindrops.options.dropletsSize = [0.6, 2.2];
+                this.raindrops.options.maxDrops = 300;
+            } else if (rainMode === 'dynamic') {
+                this.raindrops.options.minR = 1.0;
+                this.raindrops.options.maxR = 8.0;
+                this.raindrops.options.rainChance = 0.30;
+                this.raindrops.options.rainLimit = 4;
+                this.raindrops.options.dropletsRate = 20;
+                this.raindrops.options.dropletsSize = [0.4, 1.4];
+                this.raindrops.options.maxDrops = 180;
+            } else { // HYBRID
+                this.raindrops.options.minR = 1.4;
+                this.raindrops.options.maxR = 10.0;
+                this.raindrops.options.rainChance = 0.40;
+                this.raindrops.options.rainLimit = 5;
+                this.raindrops.options.dropletsRate = 30;
+                this.raindrops.options.dropletsSize = [0.5, 1.8];
+                this.raindrops.options.maxDrops = 250;
             }
-            this.raindrops.options.trailRate = 0.65;
-            this.raindrops.options.trailScaleRange = [0.20, 0.45];
+            this.raindrops.options.trailRate = 0.75;
+            this.raindrops.options.trailScaleRange = [0.15, 0.35];
             this.raindrops.options.spawnArea = [-0.1, 1.0];
         } else if (type === 1) { // DRIZZLE
             this.raindrops.options.raining = true;
             if (rainMode === 'classic') {
-                this.raindrops.options.minR = 1.5;
-                this.raindrops.options.maxR = 12.0;
-                this.raindrops.options.rainChance = 0.35;
-                this.raindrops.options.rainLimit = 4;
-                this.raindrops.options.dropletsRate = 28;
-                this.raindrops.options.dropletsSize = [0.7, 2.8];
-                this.raindrops.options.maxDrops = 250;
-            } else if (rainMode === 'dynamic') {
-                this.raindrops.options.minR = 1.0;
+                this.raindrops.options.minR = 1.2;
                 this.raindrops.options.maxR = 8.0;
-                this.raindrops.options.rainChance = 0.18;
+                this.raindrops.options.rainChance = 0.30;
                 this.raindrops.options.rainLimit = 3;
-                this.raindrops.options.dropletsRate = 15;
-                this.raindrops.options.dropletsSize = [0.5, 1.8];
-                this.raindrops.options.maxDrops = 150;
-            } else { // HYBRID
-                this.raindrops.options.minR = 1.4;
-                this.raindrops.options.maxR = 10.0;
-                this.raindrops.options.rainChance = 0.28;
-                this.raindrops.options.rainLimit = 4;
                 this.raindrops.options.dropletsRate = 22;
-                this.raindrops.options.dropletsSize = [0.6, 2.5];
+                this.raindrops.options.dropletsSize = [0.4, 1.6];
                 this.raindrops.options.maxDrops = 200;
+            } else if (rainMode === 'dynamic') {
+                this.raindrops.options.minR = 0.8;
+                this.raindrops.options.maxR = 6.0;
+                this.raindrops.options.rainChance = 0.15;
+                this.raindrops.options.rainLimit = 2;
+                this.raindrops.options.dropletsRate = 12;
+                this.raindrops.options.dropletsSize = [0.3, 1.2];
+                this.raindrops.options.maxDrops = 120;
+            } else { // HYBRID
+                this.raindrops.options.minR = 1.0;
+                this.raindrops.options.maxR = 7.0;
+                this.raindrops.options.rainChance = 0.22;
+                this.raindrops.options.rainLimit = 3;
+                this.raindrops.options.dropletsRate = 18;
+                this.raindrops.options.dropletsSize = [0.4, 1.4];
+                this.raindrops.options.maxDrops = 160;
             }
-            this.raindrops.options.trailRate = 0.35;
-            this.raindrops.options.trailScaleRange = [0.15, 0.35];
+            this.raindrops.options.trailRate = 0.45;
+            this.raindrops.options.trailScaleRange = [0.12, 0.28];
             this.raindrops.options.spawnArea = [-0.1, 1.0];
         } else { // CLEAR
             this.raindrops.options.raining = false;
@@ -185,6 +185,15 @@ export class WiperController {
                 this.raindrops.options.spawnArea = [-0.05, 1.05];
                 this.raindrops.options.trailRate = 0.75;
                 this.raindrops.options.trailScaleRange = [0.22, 0.48];
+            } else if (weatherType === 2) { // CLOUDY DAY
+                this.raindrops.options.raining = true;
+                this.raindrops.options.rainChance = isThirdPerson ? (0.10 + speedRatio * 0.05) : (0.35 + speedRatio * 0.10);
+                this.raindrops.options.dropletsRate = isThirdPerson ? Math.max(4, 10 - speedRatio * 5) : Math.max(10, 25 - speedRatio * 12);
+                this.raindrops.options.dropFallMultiplier = 0.9 + speedRatio * 3.0;
+                this.raindrops.options.globalTimeScale = 0.90 + speedRatio * 1.8;
+                this.raindrops.options.spawnArea = [-0.05, 1.05];
+                this.raindrops.options.trailRate = 0.35;
+                this.raindrops.options.trailScaleRange = [0.15, 0.32];
             } else if (weatherType === 1) { // DRIZZLE
                 this.raindrops.options.raining = true;
                 this.raindrops.options.rainChance = isThirdPerson ? (0.20 + speedRatio * 0.15) : (0.28 + speedRatio * 0.15);
@@ -257,7 +266,7 @@ export class WiperController {
     _updateVehicleWetness(dt, weatherType) {
         if (!this.vehicle || !this.vehicle.bodyMaterial) return;
 
-        const isRaining = weatherType !== 3;
+        const isRaining = (weatherType === 0 || weatherType === 1 || weatherType === 2);
         const targetWetness = isRaining ? 1.0 : 0.0;
         this.wetness = THREE.MathUtils.lerp(this.wetness, targetWetness, dt * (isRaining ? 0.3 : 0.1));
 

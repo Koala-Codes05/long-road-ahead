@@ -47,13 +47,13 @@ const Drop = {
 };
 
 const defaultOptions = {
-    minR: 10,
-    maxR: 40,
-    maxDrops: 650,
+    minR: 3.5,
+    maxR: 15.0,
+    maxDrops: 450,
     rainChance: 0.35,
     rainLimit: 4,
-    dropletsRate: 50,
-    dropletsSize: [2, 4],
+    dropletsRate: 35,
+    dropletsSize: [0.5, 1.8],
     dropletsCleaningRadiusMultiplier: 0.43,
     raining: true,
     globalTimeScale: 1,

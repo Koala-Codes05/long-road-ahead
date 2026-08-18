@@ -30,7 +30,7 @@ export class WeatherSystem {
         this.gForce = new THREE.Vector2(0, 0);
         this.windVector = new THREE.Vector2(0.5, 0.2);
 
-        // Weather Preset Types: 0 = Heavy Storm, 1 = Drizzle, 3 = Clear
+        // Weather Preset Types: 0 = Heavy Storm, 1 = Drizzle, 2 = Cloudy Day, 3 = Clear
         this.weatherType = 0;
 
         // Rain FX Modes: 0 = HYBRID (OLD + NEW), 1 = CLASSIC GLASS, 2 = DRIVECLUB 3D
@@ -53,7 +53,7 @@ export class WeatherSystem {
         // 4. 3D Particle Volume Systems
         this.rainVolume3D = new RainVolume3D(this.scene, this.rainLighting);
         this.farRainPoints = new FarRainPoints(this.scene);
-        this.tireMist = new TireMist(this.scene, this.vehicle);
+        this.tireMist = new TireMist(this.scene, this.vehicle, this.world);
 
         // 5. 2D Glass Droplets & Auto-Wiper Physics
         this.wiperController = new WiperController(
@@ -89,6 +89,9 @@ export class WeatherSystem {
 
         const currentMode = this.rainModes[this.rainModeIndex];
         this.wiperController.applyWeatherPreset(type, currentMode);
+        if (this.cloudSystem && this.cloudSystem.setWeather) {
+            this.cloudSystem.setWeather(type);
+        }
 
         // Dynamic Atmosphere, Scene Lighting & Fog Tuning per Preset
         let lightMul = 1.0;
@@ -105,7 +108,7 @@ export class WeatherSystem {
                 lightMul = 0.35;             // Dim global scene lighting for heavy storm
                 vehicleEnvIntensity = 0.22;   // 78% reduction in car body HDRI reflection glow
                 vehiclePaintDarkening = 0.50; // Darken car paint to match wet storm asphalt absorption
-            } else if (type === 1) { // DRIZZLE
+            } else if (this.weatherType === 1) { // DRIZZLE
                 this.scene.background.setHex(0x0c1424);
                 if (this.scene.fog) {
                     this.scene.fog.color.setHex(0x0c1424);
@@ -114,6 +117,15 @@ export class WeatherSystem {
                 lightMul = 0.60;
                 vehicleEnvIntensity = 0.45;
                 vehiclePaintDarkening = 0.72;
+            } else if (this.weatherType === 2) { // CLOUDY DAY (DAYTIME STORM)
+                this.scene.background.setHex(0x8093a4);
+                if (this.scene.fog) {
+                    this.scene.fog.color.setHex(0x8093a4);
+                    this.scene.fog.density = 0.0050;
+                }
+                lightMul = 1.6;
+                vehicleEnvIntensity = 1.35;
+                vehiclePaintDarkening = 0.65;
             } else { // CLEAR
                 this.scene.background.setHex(0x04060c);
                 if (this.scene.fog) {
@@ -254,9 +266,12 @@ export class WeatherSystem {
         // Adjust glass refraction blur based on 3rd vs 1st person perspective
         const isThirdPerson = cameraMode === 0;
         if (this.rainPass) {
-            this.rainPass.uniforms.uDropBlurAmount.value = isThirdPerson ? 0.01 : 0.03;
-            this.rainPass.uniforms.uMinRefraction.value = isThirdPerson ? 0.003 : 0.005;
-            this.rainPass.uniforms.uRefractionDelta.value = isThirdPerson ? 0.012 : 0.020;
+            if (this.rainPass.uniforms.uCameraMode) {
+                this.rainPass.uniforms.uCameraMode.value = cameraMode;
+            }
+            this.rainPass.uniforms.uDropBlurAmount.value = isThirdPerson ? 0.005 : 0.03;
+            this.rainPass.uniforms.uMinRefraction.value = isThirdPerson ? 0.002 : 0.005;
+            this.rainPass.uniforms.uRefractionDelta.value = isThirdPerson ? 0.008 : 0.020;
         }
 
         // Animate water ripple normal map offset

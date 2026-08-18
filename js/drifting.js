@@ -50,12 +50,11 @@ export class DriftingSystem {
         const tireScrub = this.v.turningSystem ? this.v.turningSystem.tireScrub : 0;
         const brakeLockRatio = this.v.turningSystem ? this.v.turningSystem.brakeLockRatio : 0;
 
-        // 4. Rear Grip Factor: gradual handbrake break + gradual recovery + weather
-        // Wet weather lowers grip break threshold for easier drift initiation
-        const handbrakeGripBreak = 0.15 * weatherGripFactor;
+        // 4. Rear Grip Factor: smooth controlled handbrake rear traction release
+        const handbrakeGripBreak = 0.25 * weatherGripFactor;
         let rearGripFactor;
         if (isHandbrake) {
-            rearGripFactor = THREE.MathUtils.lerp(1.0, handbrakeGripBreak, this.handbrakeTimer / 0.2);
+            rearGripFactor = handbrakeGripBreak;
         } else if (this.releaseTimer > 0) {
             rearGripFactor = THREE.MathUtils.lerp(handbrakeGripBreak, 1.0, 1.0 - this.releaseTimer / 0.5);
         } else {
@@ -64,11 +63,11 @@ export class DriftingSystem {
 
         // 5. Calculate Sideways Slip Velocity (vLat)
         const dvLat = -this.v.vLong * this.v.yawRate;
-        const canDrift = kmh >= 8.0;
+        const canDrift = kmh >= 6.0;
 
         if (isHandbrake && canDrift) {
-            // Handbrake drift: gradual initiation based on rear grip loss
-            this.vLat += dvLat * dt * 1.85 * (1.0 - rearGripFactor);
+            // Handbrake drift: rear tires lose grip, vLat evolves naturally from yaw rotation and momentum
+            this.vLat += dvLat * dt * 1.4 * (1.0 - rearGripFactor);
             this.isDrifting = true;
         } else if (Math.abs(this.alphaR) > 0.12 && vLongAbs > 4.0 && canDrift) {
             // Sustained drift via high rear slip angle with pacejka grip

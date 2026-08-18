@@ -100,27 +100,19 @@ export class TurningSystem {
         const lockedFrontGrip = 1.0 - this.brakeLockRatio * 0.65;
         let actualYawRate = desiredYawRate * saturation * lockedFrontGrip * relaxFactor;
 
-        // Handbrake U-turn assist: lets the rear rotate around at low/medium speed
-        // without making normal high-speed steering twitchy.
-        const handbrakeTurnWindow = THREE.MathUtils.smoothstep(kmh, 8.0, 28.0) * (1.0 - THREE.MathUtils.smoothstep(kmh, 78.0, 125.0));
-        const handbrakeTurnAssist = input.handbrake && steerDir !== 0 ? handbrakeTurnWindow : 0.0;
-        if (handbrakeTurnAssist > 0.0) {
-            const pivotYawRate = steerDir * THREE.MathUtils.lerp(0.55, 1.35, 1.0 - THREE.MathUtils.smoothstep(kmh, 22.0, 90.0));
-            actualYawRate = THREE.MathUtils.lerp(actualYawRate, pivotYawRate, handbrakeTurnAssist * 0.42);
+        // Smooth Natural Handbrake: Allows rear rotation without artificial sideways teleportation
+        const isHandbrakeActive = input.handbrake && Math.abs(vLong) > 1.0;
+        if (isHandbrakeActive && steerDir !== 0) {
+            const handbrakeYawBonus = steerDir * THREE.MathUtils.lerp(0.4, 0.85, Math.min(kmh / 90.0, 1.0));
+            actualYawRate = THREE.MathUtils.lerp(actualYawRate, handbrakeYawBonus, dt * 6.0);
         }
 
-        // Slower yaw damping for weighty, progressive turn-in (~170ms to reach target)
         const yawDampSpeed = isChangingDirection ? 10.0 : 6.0;
         const yawDamp = 1.0 - Math.exp(-dt * yawDampSpeed);
         this.yawRate = THREE.MathUtils.lerp(this.yawRate, actualYawRate, yawDamp);
         this.v.yawRate = this.yawRate;
+
         this.targetLateralVelocity = Math.tan(bodySlipAngle) * vLong * saturation * lockedFrontGrip * relaxFactor;
-        if (handbrakeTurnAssist > 0.0) {
-            const slideSign = Math.sign(steerDir);
-            const slideAmount = THREE.MathUtils.lerp(1.2, 3.8, THREE.MathUtils.smoothstep(kmh, 10.0, 70.0));
-            this.targetLateralVelocity += slideSign * slideAmount * handbrakeTurnAssist;
-            this.v.vLong *= (1.0 - 1.75 * handbrakeTurnAssist * dt);
-        }
         if (this.tireScrub > 0.0 || this.brakeLockRatio > 0.0) {
             const scrubDrag = Math.min(0.28, (this.tireScrub * 0.16 + this.brakeLockRatio * 0.34) * dt);
             this.v.vLong *= (1.0 - scrubDrag);

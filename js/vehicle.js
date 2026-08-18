@@ -190,6 +190,121 @@ export class Vehicle {
             depthWrite: false,
             side: THREE.DoubleSide
         });
+
+        this.waterDropNormalMap = this._initWaterDropletNormalMap();
+        this._initWaterSpraySystem();
+    }
+
+    _initWaterDropletNormalMap() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 512;
+        canvas.height = 512;
+        const ctx = canvas.getContext('2d');
+
+        // Base neutral normal vector (RGB 128, 128, 255)
+        ctx.fillStyle = 'rgb(128, 128, 255)';
+        ctx.fillRect(0, 0, 512, 512);
+
+        // High-density micro water droplets with realistic radial surface normals
+        for (let i = 0; i < 700; i++) {
+            const x = Math.random() * 512;
+            const y = Math.random() * 512;
+            const r = 1.2 + Math.random() * 4.2;
+
+            const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+            grad.addColorStop(0, 'rgb(128, 128, 255)');      // Center dome peak
+            grad.addColorStop(0.5, 'rgb(180, 120, 240)');    // Curved water drop slope
+            grad.addColorStop(0.85, 'rgb(225, 75, 195)');    // Drop edge refraction slope
+            grad.addColorStop(1, 'rgb(128, 128, 255)');      // Flat panel join
+
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(x, y, r, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Elongated water streak channels for rear bodywork physics
+        for (let j = 0; j < 50; j++) {
+            const sx = Math.random() * 512;
+            const sy = Math.random() * 512;
+            const len = 14 + Math.random() * 38;
+            const w = 1.0 + Math.random() * 2.0;
+
+            const streakGrad = ctx.createLinearGradient(sx, sy, sx, sy + len);
+            streakGrad.addColorStop(0, 'rgb(185, 105, 245)');
+            streakGrad.addColorStop(0.5, 'rgb(155, 128, 250)');
+            streakGrad.addColorStop(1, 'rgb(128, 128, 255)');
+
+            ctx.fillStyle = streakGrad;
+            ctx.fillRect(sx - w * 0.5, sy, w, len);
+        }
+
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.wrapS = THREE.RepeatWrapping;
+        tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(4, 4);
+        return tex;
+    }
+
+    _initWaterSpraySystem() {
+        const count = 140;
+        const geo = new THREE.BufferGeometry();
+        const pos = new Float32Array(count * 3);
+        for (let i = 0; i < count; i++) {
+            pos[i * 3] = 0; pos[i * 3 + 1] = -100; pos[i * 3 + 2] = 0;
+        }
+        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+
+        const canvas = document.createElement('canvas');
+        canvas.width = 64; canvas.height = 64;
+        const ctx = canvas.getContext('2d');
+        const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 30);
+        grad.addColorStop(0, 'rgba(235, 245, 255, 0.70)');
+        grad.addColorStop(0.35, 'rgba(195, 215, 240, 0.30)');
+        grad.addColorStop(1, 'rgba(140, 165, 195, 0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 64, 64);
+
+        const sprayMat = new THREE.PointsMaterial({
+            size: 1.5,
+            map: new THREE.CanvasTexture(canvas),
+            transparent: true,
+            opacity: 0.35,
+            depthWrite: false,
+            blending: THREE.NormalBlending,
+        });
+
+        this.waterSprayParticles = new THREE.Points(geo, sprayMat);
+        this.scene.add(this.waterSprayParticles);
+
+        this.waterSprayData = Array.from({ length: count }, () => ({
+            vx: 0, vy: 0, vz: 0, life: 0, maxLife: 0.35, opacity: 0
+        }));
+        this.nextSprayIdx = 0;
+    }
+
+    _emitWaterSpray(x, z, intensity) {
+        if (!this.waterSprayData) return;
+        const data = this.waterSprayData[this.nextSprayIdx];
+        const pos = this.waterSprayParticles.geometry.attributes.position.array;
+        const idx = this.nextSprayIdx * 3;
+
+        const sinH = Math.sin(this.heading);
+        const cosH = Math.cos(this.heading);
+
+        pos[idx] = x + (Math.random() - 0.5) * 0.25;
+        pos[idx + 1] = 0.06 + Math.random() * 0.12;
+        pos[idx + 2] = z + (Math.random() - 0.5) * 0.25;
+
+        // Water mist blows backward relative to vehicle heading
+        data.vx = sinH * (this.vLong * 0.35) + (Math.random() - 0.5) * 0.8;
+        data.vy = 0.6 + Math.random() * 0.9;
+        data.vz = cosH * (this.vLong * 0.35) + (Math.random() - 0.5) * 0.8;
+        data.life = 0;
+        data.maxLife = 0.25 + Math.random() * 0.20;
+        data.opacity = 0.35 * intensity;
+
+        this.nextSprayIdx = (this.nextSprayIdx + 1) % this.waterSprayData.length;
     }
 
     _initContactShadow() {
@@ -400,7 +515,14 @@ export class Vehicle {
         const glassMat = new THREE.MeshStandardMaterial({ color: 0x112233, metalness: 0.9, roughness: 0.05, transparent: true, opacity: 0.55 });
         const engineMat = new THREE.MeshStandardMaterial({ color: 0x555566, metalness: 0.92, roughness: 0.20 });
         const engineCoverMat = new THREE.MeshStandardMaterial({ color: 0xcc1100, metalness: 0.80, roughness: 0.25 });
-        const tireMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.65, metalness: 0.2 });
+        this.tireMaterial = new THREE.MeshPhysicalMaterial({
+            color: 0x1a1a1a,
+            roughness: 0.65,
+            metalness: 0.2,
+            clearcoat: 0.0,
+            clearcoatRoughness: 0.2,
+        });
+        const tireMat = this.tireMaterial;
         const rimMat = new THREE.MeshStandardMaterial({ color: 0xdddddd, metalness: 0.95, roughness: 0.08 });
         const rotorMat = new THREE.MeshStandardMaterial({ color: 0x888899, metalness: 0.92, roughness: 0.25 });
         const caliperMat = new THREE.MeshStandardMaterial({ color: 0xee1100, metalness: 0.85, roughness: 0.18 });
@@ -837,6 +959,94 @@ export class Vehicle {
 
             // Emit barrier scrape smoke/sparks
             this._emitSmoke(this.mesh.position.x, this.mesh.position.z, 0.85);
+        }
+
+        // 7. Dynamic Vehicle Wetness Physics, Water Droplets Normal Map, Specular & Tire Spray
+        this._updateVehicleWetnessAndSpray(dt, weather);
+    }
+
+    _updateVehicleWetnessAndSpray(dt, weather) {
+        const weatherType = weather ? weather.weatherType : 3;
+        const isRaining = (weatherType === 0 || weatherType === 1 || weatherType === 2);
+        const targetWetness = weatherType === 0 ? 1.0 : (weatherType === 1 ? 0.75 : (weatherType === 2 ? 0.90 : 0.0));
+
+        this.bodyWetness = THREE.MathUtils.lerp(this.bodyWetness || 0.0, targetWetness, dt * (isRaining ? 0.4 : 0.15));
+        const wet = this.bodyWetness;
+        const speedRatio = Math.min(Math.abs(this.vLong) / 45.0, 1.5);
+
+        // 1. Body Panel Clearcoat & Specular & Droplet Normal Map Response
+        if (this.bodyMaterial) {
+            const mat = this.bodyMaterial;
+            mat.roughness = THREE.MathUtils.lerp(0.25, 0.02, wet);
+            mat.clearcoat = THREE.MathUtils.lerp(0.70, 1.00, wet);
+            mat.clearcoatRoughness = THREE.MathUtils.lerp(0.15, 0.01, wet);
+
+            // Slightly stronger specular response under sky/moon environment lighting
+            mat.envMapIntensity = THREE.MathUtils.lerp(1.0, 2.6, wet);
+
+            // Subtle procedural water droplets normal map on body panels
+            if (this.waterDropNormalMap) {
+                mat.normalMap = this.waterDropNormalMap;
+                const normStrength = (weatherType === 2 ? 0.65 : 0.42) * wet;
+                mat.normalScale.set(normStrength, normStrength);
+
+                // Animate subtle water streaks on rear bodywork (especially Cloudy Day)
+                if (isRaining && Math.abs(this.vLong) > 1.0) {
+                    this.waterDropNormalMap.offset.y += dt * 0.14 * (speedRatio + 0.2);
+                }
+            }
+        }
+
+        // 2. Wet Tire Sidewalls (Glossy Slick Wet Rubber Sheen)
+        if (this.tireMaterial) {
+            const tMat = this.tireMaterial;
+            tMat.roughness = THREE.MathUtils.lerp(0.65, 0.10, wet);
+            tMat.clearcoat = THREE.MathUtils.lerp(0.0, 0.92, wet);
+            tMat.clearcoatRoughness = THREE.MathUtils.lerp(0.20, 0.02, wet);
+            tMat.envMapIntensity = THREE.MathUtils.lerp(1.0, 2.2, wet);
+        }
+
+        // 3. Tiny Tire Water Spray Particles Mist
+        const isMoving = Math.abs(this.vLong) > 2.0;
+        if (isRaining && isMoving) {
+            const sinH = Math.sin(this.heading);
+            const cosH = Math.cos(this.heading);
+            const sprayIntensity = (weatherType === 0 ? 1.0 : (weatherType === 2 ? 0.85 : 0.50)) * Math.min(Math.abs(this.vLong) / 25.0, 1.2);
+
+            if (Math.random() < sprayIntensity * 0.85) {
+                const tireOffsets = [
+                    { x: -0.88, z: -1.4 }, { x: 0.88, z: -1.4 },
+                    { x: -0.88, z: 1.35 }, { x: 0.88, z: 1.35 }
+                ];
+
+                tireOffsets.forEach(t => {
+                    const wx = this.mesh.position.x - sinH * t.z + cosH * t.x;
+                    const wz = this.mesh.position.z - cosH * t.z - sinH * t.x;
+                    this._emitWaterSpray(wx, wz, sprayIntensity);
+                });
+            }
+        }
+
+        // Update active water spray particle positions
+        if (this.waterSprayParticles) {
+            const pos = this.waterSprayParticles.geometry.attributes.position.array;
+            for (let i = 0; i < this.waterSprayData.length; i++) {
+                const d = this.waterSprayData[i];
+                if (d.opacity > 0.001) {
+                    d.life += dt;
+                    if (d.life >= d.maxLife) {
+                        d.opacity = 0;
+                        pos[i * 3 + 1] = -100;
+                    } else {
+                        const progress = d.life / d.maxLife;
+                        pos[i * 3] += d.vx * dt;
+                        pos[i * 3 + 1] += d.vy * dt;
+                        pos[i * 3 + 2] += d.vz * dt;
+                        d.opacity = (1.0 - progress) * 0.35;
+                    }
+                }
+            }
+            this.waterSprayParticles.geometry.attributes.position.needsUpdate = true;
         }
     }
 
