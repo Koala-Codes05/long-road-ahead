@@ -334,7 +334,6 @@ exrLoader.load('assets/hdr/night time/NightSkyHDRI003_4K_HDR.exr', (hdrTexture) 
     console.log('Night EXR HDRI loaded successfully');
 }, undefined, (err) => {
     console.warn('EXRLoader failed, using procedural night environment fallback:', err);
-    console.warn('EXRLoader failed, using procedural night environment fallback:', err);
     if (renderer) {
         nightHdrTexture = createHDRNightEnvironment(renderer);
         if (weather && weather.weatherType !== 2) {
@@ -355,6 +354,8 @@ rgbeLoader.load('assets/hdr/MR_INT-001_NaturalStudio_NAD.hdr', (hdrTexture) => {
 }, undefined, (err) => {
     console.warn('RGBELoader failed for daytime HDRI:', err);
 });
+
+/* =============================================
    LIGHTING (Moody Lowered Moonlight & Warm Sodium Ambient Sky)
    ============================================= */
 const ambientMoon = new THREE.AmbientLight(0x445577, 0.45); scene.add(ambientMoon); // Soft lowered ambient moonlight fill
