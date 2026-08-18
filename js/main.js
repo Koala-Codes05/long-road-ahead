@@ -753,7 +753,7 @@ world.init();
 const cloudSystem = new CloudSystem(scene);
 
 // Driveclub Glass Refraction Rain & Wet Surface System
-const weather = new WeatherSystem(scene, vehicle.mesh, world, composer);
+const weather = new WeatherSystem(scene, vehicle, world, composer);
 
 // High-Fidelity Glowing Motion Trail & Speed Ribbon System
 const speedTrailSystem = new SpeedTrailSystem(scene, vehicle.mesh);

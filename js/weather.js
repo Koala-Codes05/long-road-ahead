@@ -226,8 +226,12 @@ export class WeatherSystem {
 
     update(dt, cameraMode = 0, camera = null) {
         this.clockTime += dt;
-        const carPos = this.vehicle.mesh.position;
-        const speed = Math.abs(this.vehicle.speed);
+        if (!this.vehicle) return;
+        const carMesh = this.vehicle.mesh || (this.vehicle.position ? this.vehicle : null);
+        if (!carMesh || !carMesh.position) return;
+
+        const carPos = carMesh.position;
+        const speed = Math.abs(this.vehicle.speed || 0);
         const speedRatio = Math.min(speed / 70.0, 1.6); // Wind speed ratio
         const windIntensity = this.weatherType === 0 ? 0.85 : (this.weatherType === 1 ? 0.45 : (this.weatherType === 2 ? 0.65 : 0.0));
         const targetWindX = Math.sin(this.clockTime * 0.18) * 0.75 * windIntensity;
