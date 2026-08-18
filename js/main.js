@@ -136,8 +136,9 @@ function initComposerAndPasses(r) {
     const comp = new EffectComposer(r);
     comp.addPass(new RenderPass(scene, camera));
 
+    // Quarter-Resolution Tier (0.25x) - Bloom Pass for fast fill-rate post-processing
     bloomPass = new UnrealBloomPass(
-        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        new THREE.Vector2(Math.floor(window.innerWidth * 0.25), Math.floor(window.innerHeight * 0.25)),
         0.45, // strength
         0.40, // radius
         0.85, // threshold
@@ -1189,6 +1190,40 @@ window.addEventListener('keydown', (e) => {
         const modeName = weather.setRainMode();
         if (elBadgeRainmode) {
             elBadgeRainmode.textContent = `🌧️ ${modeName}`;
+        }
+    }
+});
+
+/* =============================================
+   RESOLUTION TIERED WINDOW RESIZE HANDLER
+   Full (1.0x): Scene Geometry & Materials
+   Half (0.5x): Planar SSR & Atmosphere
+   Quarter (0.25x): Bloom Pass Upscaling
+   ============================================= */
+window.addEventListener('resize', () => {
+    if (!renderer || !camera) return;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+
+    // Full Resolution (1.0x) - Primary Scene & Camera
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h);
+
+    if (composer) {
+        composer.setSize(w, h);
+    }
+
+    // Quarter Resolution (0.25x) - Bloom Pass Fill Rate
+    if (bloomPass) {
+        bloomPass.setSize(Math.floor(w * 0.25), Math.floor(h * 0.25));
+    }
+
+    // Half Resolution (0.50x) - Planar Road Reflection Target
+    if (weather && weather.wetRoadManager && weather.wetRoadManager.planarReflection) {
+        const planar = weather.wetRoadManager.planarReflection;
+        if (planar.renderTarget) {
+            planar.renderTarget.setSize(Math.floor(w * 0.50), Math.floor(h * 0.50));
         }
     }
 });

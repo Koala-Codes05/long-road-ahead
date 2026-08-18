@@ -1,15 +1,15 @@
 import * as THREE from 'three';
 
 /**
- * PlanarRoadReflection — Performance-Optimized Selective Ground Planar Reflection Engine.
- * Features zero-traversal mesh caching and budget-constrained render target allocation (0.8-1.2 ms GPU budget),
- * delivering ultra-fast selective ground reflections of the vehicle, lights & atmosphere.
+ * PlanarRoadReflection — AAA Performance-Optimized Selective Ground Planar Reflection Engine.
+ * Features zero-traversal mesh caching and budget-constrained render target allocation (0.8-1.2 ms GPU budget).
+ * Automatically excludes heavy particle systems & road surfaces to prevent double-rendering overhead.
  */
 export class PlanarRoadReflection {
     constructor(scene, options = {}) {
         this.scene = scene;
         this.enabled = true;
-        // Optimized 768x384 resolution fits comfortably in the 0.8-1.2 ms GPU reflection budget
+        // Half-Resolution Tier (0.50x) fits comfortably within 0.8-1.2 ms GPU budget
         this.width = options.width || 768;
         this.height = options.height || 384;
 
@@ -26,6 +26,7 @@ export class PlanarRoadReflection {
 
         this.textureMatrix = new THREE.Matrix4();
         this.roadMeshes = [];
+        this.particleMeshes = [];
         this._lastCacheCheck = 0;
 
         // Zero-GC temp vectors
@@ -47,10 +48,22 @@ export class PlanarRoadReflection {
 
     _updateRoadMeshCache() {
         this.roadMeshes.length = 0;
+        this.particleMeshes.length = 0;
         if (!this.scene) return;
         this.scene.traverse((obj) => {
-            if (obj.isMesh && (obj.name.includes('road') || obj.name.includes('Road') || obj.name.includes('asphalt') || obj.name.includes('Asphalt'))) {
-                this.roadMeshes.push(obj);
+            if (obj.isMesh || obj.isPoints) {
+                if (obj.name.includes('road') || obj.name.includes('Road') || obj.name.includes('asphalt') || obj.name.includes('Asphalt')) {
+                    this.roadMeshes.push(obj);
+                } else if (
+                    obj.isPoints ||
+                    obj.name.includes('Rain') || obj.name.includes('rain') ||
+                    obj.name.includes('Mist') || obj.name.includes('mist') ||
+                    obj.name.includes('Splash') || obj.name.includes('splash') ||
+                    obj.name.includes('Fog') || obj.name.includes('fog') ||
+                    (obj.material && obj.material.transparent && obj.material.depthWrite === false)
+                ) {
+                    this.particleMeshes.push(obj);
+                }
             }
         });
     }
@@ -58,7 +71,7 @@ export class PlanarRoadReflection {
     update(renderer, mainCamera, wetness = 1.0, roadMaterial = null) {
         if (!this.enabled || wetness < 0.02 || !renderer || !mainCamera) return;
 
-        // 1. Refresh road mesh cache periodically (every ~3 seconds) to account for dynamic chunks
+        // 1. Refresh mesh cache periodically (every ~3 seconds) to account for dynamic chunks
         const now = performance.now();
         if (now - this._lastCacheCheck > 3000 || this.roadMeshes.length === 0) {
             this._updateRoadMeshCache();
@@ -97,9 +110,16 @@ export class PlanarRoadReflection {
         this.textureMatrix.multiply(this.reflectionCamera.projectionMatrix);
         this.textureMatrix.multiply(this.reflectionCamera.matrixWorldInverse);
 
-        // 5. Zero-traversal hiding of cached road surface meshes
+        // 5. Zero-traversal hiding of cached road surface meshes AND particle volumes
         for (let i = 0; i < this.roadMeshes.length; i++) {
             this.roadMeshes[i].visible = false;
+        }
+        const hiddenParticles = [];
+        for (let i = 0; i < this.particleMeshes.length; i++) {
+            if (this.particleMeshes[i].visible) {
+                this.particleMeshes[i].visible = false;
+                hiddenParticles.push(this.particleMeshes[i]);
+            }
         }
 
         // 6. Render reflected scene into WebGLRenderTarget
@@ -115,12 +135,15 @@ export class PlanarRoadReflection {
 
         renderer.render(this.scene, this.reflectionCamera);
 
-        // 7. Restore main rendering target and road visibility
+        // 7. Restore main rendering target and object visibility
         renderer.setRenderTarget(currentRenderTarget);
         renderer.xr.enabled = currentXR;
 
         for (let i = 0; i < this.roadMeshes.length; i++) {
             this.roadMeshes[i].visible = true;
+        }
+        for (let i = 0; i < hiddenParticles.length; i++) {
+            hiddenParticles[i].visible = true;
         }
     }
 }
