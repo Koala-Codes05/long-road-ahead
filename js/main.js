@@ -764,6 +764,25 @@ const minimap = new Minimap();
 // Ferrari Engine Sound & Audio Controller
 const audioEngine = new AudioEngine();
 
+// Auto-unlock Web Audio on user gesture
+const unlockAudio = () => {
+    if (audioEngine) audioEngine.init();
+};
+['click', 'keydown', 'touchstart', 'pointerdown'].forEach(evt => {
+    window.addEventListener(evt, unlockAudio, { passive: true });
+});
+
+const startBtn = document.getElementById('start-btn');
+if (startBtn) {
+    startBtn.addEventListener('click', () => {
+        const loadingScreen = document.getElementById('loading-screen');
+        const hud = document.getElementById('hud');
+        if (loadingScreen) loadingScreen.style.display = 'none';
+        if (hud) hud.style.display = 'block';
+        unlockAudio();
+    });
+}
+
 // Weather Preset Switcher UI & Environment Sync
 function applyWeatherEnvironment(type) {
     weather.setWeather(type);
@@ -1337,7 +1356,7 @@ function animate() {
     world.update(vehicle.mesh.position);
     cloudSystem.update(dt, vehicle.mesh.position);
     weather.update(dt, input.cameraMode, camera);
-    audioEngine.update(vehicle, weather.weatherType !== 3);
+    audioEngine.update(vehicle, weather.weatherType !== 3, weather.weatherType);
 
     const isDrifting = vehicle.isDrifting || input.handbrake || (input.brake && Math.abs(input.steering) > 0.3);
     speedTrailSystem.update(dt, vehicle.getSpeedKmh(), isDrifting, input.brake);
