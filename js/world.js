@@ -369,12 +369,12 @@ export class World {
             side: THREE.DoubleSide,
         });
         this.puddleMat = new THREE.MeshStandardMaterial({
-            color: 0x121824,
-            metalness: 0.15,
-            roughness: 0.015,
+            color: 0xffffff,
+            metalness: 0.92,
+            roughness: 0.01,
             transparent: true,
-            opacity: 0.80,
-            envMapIntensity: 2.2,
+            opacity: 0.18,
+            envMapIntensity: 2.5,
             side: THREE.DoubleSide,
             depthWrite: false,
         });

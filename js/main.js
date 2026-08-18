@@ -1363,6 +1363,7 @@ function animate() {
 
     updateCamera(dt);
     updateStreetlampLighting(dt);
+    updateHUD();
     if (composer) {
         composer.render();
     } else if (renderer) {

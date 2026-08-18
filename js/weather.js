@@ -21,6 +21,18 @@ export class WeatherSystem {
         this.world = world;
         this.composer = composer;
 
+        // Weather Modes & State Variables (Must be defined first!)
+        this.weatherType = 0; // 0 = Heavy Storm, 1 = Drizzle, 2 = Cloudy Day, 3 = Clear
+        this.lightningTimer = 0;
+        this.lightningFlash = 0;
+        this.rainModeIndex = 0;
+        this.rainModes = ['thirdPerson', 'classic', 'light'];
+        this.rainModeNames = ['3RD CAMERA RAIN', 'CLASSIC GLASS', 'LIGHT DROPS'];
+
+        this.clockTime = 0;
+        this.gForce = new THREE.Vector2(0, 0);
+        this.windVector = new THREE.Vector2(0.5, 0.2);
+
         // 1. Add GLSL Rain Refraction Pass to EffectComposer
         this.rainPass = createRainPass();
         if (this.composer) {
@@ -36,42 +48,79 @@ export class WeatherSystem {
         // 4. Apply wet asphalt mirror look
         this._applyWetRoad();
 
-        this.clockTime = 0;
-        this.gForce = new THREE.Vector2(0, 0);
-        this.windVector = new THREE.Vector2(0.5, 0.2);
         this.rainLighting = new RainLighting(this.vehicle, this.world);
         this.rainVolume3D = new RainVolume3D(this.scene, this.rainLighting);
         this.farRainPoints = new FarRainPoints(this.scene);
+    }
 
-        // Weather Modes: 0 = Heavy Storm, 1 = Drizzle, 2 = Cloudy Day, 3 = Clear
-        this.weatherType = 0;
-        this.lightningTimer = 0;
-        this.lightningFlash = 0;
-        this.rainModeIndex = 0;
-        this.rainModes = ['thirdPerson', 'classic', 'light'];
-        this.rainModeNames = ['3RD CAMERA RAIN', 'CLASSIC GLASS', 'LIGHT DROPS'];
+    _createProceduralDropAlpha() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 64; canvas.height = 64;
+        const ctx = canvas.getContext('2d');
+        const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 30);
+        g.addColorStop(0.0, 'rgba(255, 255, 255, 1.0)');
+        g.addColorStop(0.7, 'rgba(255, 255, 255, 0.85)');
+        g.addColorStop(0.95, 'rgba(255, 255, 255, 0.3)');
+        g.addColorStop(1.0, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(32, 32, 30, 0, Math.PI * 2); ctx.fill();
+        return canvas;
+    }
+
+    _createProceduralDropColor() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 64; canvas.height = 64;
+        const ctx = canvas.getContext('2d');
+        const imgData = ctx.createImageData(64, 64);
+        const data = imgData.data;
+        for (let y = 0; y < 64; y++) {
+            for (let x = 0; x < 64; x++) {
+                const idx = (y * 64 + x) * 4;
+                const nx = (x - 32) / 32;
+                const ny = (y - 32) / 32;
+                const dist = Math.sqrt(nx * nx + ny * ny);
+                if (dist <= 1.0) {
+                    const nz = Math.sqrt(Math.max(0.0, 1.0 - dist * dist));
+                    data[idx] = Math.floor((nx * 0.5 + 0.5) * 255);
+                    data[idx + 1] = Math.floor((ny * 0.5 + 0.5) * 255);
+                    data[idx + 2] = Math.floor(nz * 255);
+                    data[idx + 3] = 255;
+                } else {
+                    data[idx] = 128; data[idx + 1] = 128; data[idx + 2] = 255; data[idx + 3] = 0;
+                }
+            }
+        }
+        ctx.putImageData(imgData, 0, 0);
+        return canvas;
     }
 
     _initRaindropsPhysics() {
-        // Create initial placeholder texture
-        const placeholderCanvas = document.createElement('canvas');
-        placeholderCanvas.width = 1;
-        placeholderCanvas.height = 1;
-        this.waterTexture = new THREE.CanvasTexture(placeholderCanvas);
-        this.rainPass.uniforms.uWaterMap.value = this.waterTexture;
+        // Start immediately with procedural drop textures so raindrops render from second 0
+        const procAlpha = this._createProceduralDropAlpha();
+        const procColor = this._createProceduralDropColor();
+        this._tryStartRaindrops(procAlpha, procColor);
 
+        // Optionally upgrade to PNG assets if loaded successfully
         const textureLoader = new THREE.TextureLoader();
         let dropAlphaImg = null;
         let dropColorImg = null;
 
         textureLoader.load('assets/rain/drop-alpha.png', (tex) => {
             dropAlphaImg = tex.image;
-            this._tryStartRaindrops(dropAlphaImg, dropColorImg);
+            if (dropColorImg && this.raindrops) {
+                this.raindrops.dropAlpha = dropAlphaImg;
+                this.raindrops.dropColor = dropColorImg;
+                this.raindrops.renderDropsGfx();
+            }
         });
 
         textureLoader.load('assets/rain/drop-color.png', (tex) => {
             dropColorImg = tex.image;
-            this._tryStartRaindrops(dropAlphaImg, dropColorImg);
+            if (dropAlphaImg && this.raindrops) {
+                this.raindrops.dropAlpha = dropAlphaImg;
+                this.raindrops.dropColor = dropColorImg;
+                this.raindrops.renderDropsGfx();
+            }
         });
     }
 
@@ -199,7 +248,9 @@ export class WeatherSystem {
     _applyRainModePreset() {
         if (!this.raindrops) return;
 
-        const mode = this.rainModes[this.rainModeIndex];
+        const rainModes = this.rainModes || ['thirdPerson', 'classic', 'light'];
+        const index = typeof this.rainModeIndex === 'number' ? this.rainModeIndex : 0;
+        const mode = rainModes[index] || 'thirdPerson';
         if (mode === 'classic') {
             this.raindrops.options.minR = 1.8;
             this.raindrops.options.maxR = 12.0;
@@ -243,7 +294,7 @@ export class WeatherSystem {
         // 1. Dynamic Speed & Wind Rain Physics Tuning
         if (this.raindrops) {
             // Wind Outward Radial Spread scales directly with car speed!
-            this.raindrops.options.windSpread = speedRatio * 2.2;
+            this.raindrops.options.windSpread = 0.5 + speedRatio * 3.5;
 
             if (this.weatherType === 0) { // STORM
                 this.raindrops.options.raining = true;
@@ -251,23 +302,23 @@ export class WeatherSystem {
                 const isLightMode = this.rainModes[this.rainModeIndex] === 'light';
                 this.raindrops.options.rainChance = (isLightMode ? 0.18 : 0.28) + speedRatio * (isLightMode ? 0.20 : 0.32);
                 this.raindrops.options.dropletsRate = (isLightMode ? 16 : 28) + speedRatio * (isLightMode ? 24 : 42);
-                this.raindrops.options.dropFallMultiplier = 1.0 + speedRatio * 2.8;
-                this.raindrops.options.globalTimeScale = 1.0 + speedRatio * 1.6;
+                this.raindrops.options.dropFallMultiplier = 1.5 + speedRatio * 3.5;
+                this.raindrops.options.globalTimeScale = 1.2 + speedRatio * 2.0;
             } else if (this.weatherType === 1) { // DRIZZLE
                 this.raindrops.options.raining = true;
                 // Drizzle = fewer droplets, gentle falling
                 const isLightMode = this.rainModes[this.rainModeIndex] === 'light';
                 this.raindrops.options.rainChance = (isLightMode ? 0.06 : 0.10) + speedRatio * (isLightMode ? 0.08 : 0.14);
                 this.raindrops.options.dropletsRate = (isLightMode ? 5 : 9) + speedRatio * (isLightMode ? 8 : 14);
-                this.raindrops.options.dropFallMultiplier = 0.7 + speedRatio * 1.5;
-                this.raindrops.options.globalTimeScale = 0.8 + speedRatio * 1.0;
+                this.raindrops.options.dropFallMultiplier = 1.0 + speedRatio * 2.0;
+                this.raindrops.options.globalTimeScale = 1.0 + speedRatio * 1.5;
             } else if (this.weatherType === 2) { // CLOUDY DAY (DAYTIME STORM)
                 this.raindrops.options.raining = true;
                 const isLightMode = this.rainModes[this.rainModeIndex] === 'light';
                 this.raindrops.options.rainChance = (isLightMode ? 0.15 : 0.24) + speedRatio * (isLightMode ? 0.18 : 0.28);
                 this.raindrops.options.dropletsRate = (isLightMode ? 14 : 24) + speedRatio * (isLightMode ? 20 : 36);
-                this.raindrops.options.dropFallMultiplier = 0.9 + speedRatio * 2.5;
-                this.raindrops.options.globalTimeScale = 0.95 + speedRatio * 1.4;
+                this.raindrops.options.dropFallMultiplier = 1.2 + speedRatio * 3.0;
+                this.raindrops.options.globalTimeScale = 1.1 + speedRatio * 1.8;
             } else {
                 this.raindrops.options.raining = false;
             }

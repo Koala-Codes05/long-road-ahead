@@ -29,10 +29,11 @@ export class SpeedTrailSystem {
         this.laserRedMat = new THREE.MeshBasicMaterial({
             vertexColors: true,
             transparent: true,
-            opacity: 0.32, // Lowered base opacity for subtle, translucent visibility
+            opacity: 0.0,
             blending: THREE.AdditiveBlending,
             side: THREE.DoubleSide,
             depthWrite: false,
+            depthTest: true,
         });
 
         // Subtle White Radial Speed Lines
@@ -42,6 +43,7 @@ export class SpeedTrailSystem {
             opacity: 0.0,
             blending: THREE.AdditiveBlending,
             depthWrite: false,
+            depthTest: true,
         });
     }
 
@@ -77,11 +79,13 @@ export class SpeedTrailSystem {
         this.leftLaserGeo = this._createLaserRibbonGeo();
         this.leftLaserMesh = new THREE.Mesh(this.leftLaserGeo, this.laserRedMat);
         this.leftLaserMesh.frustumCulled = false;
+        this.leftLaserMesh.visible = false;
         this.scene.add(this.leftLaserMesh);
 
         this.rightLaserGeo = this._createLaserRibbonGeo();
         this.rightLaserMesh = new THREE.Mesh(this.rightLaserGeo, this.laserRedMat);
         this.rightLaserMesh.frustumCulled = false;
+        this.rightLaserMesh.visible = false;
         this.scene.add(this.rightLaserMesh);
     }
 
@@ -108,6 +112,7 @@ export class SpeedTrailSystem {
         lineGeo.setAttribute('position', new THREE.BufferAttribute(linePos, 3));
         this.speedLinesMesh = new THREE.LineSegments(lineGeo, this.speedLineMat);
         this.speedLinesMesh.frustumCulled = false;
+        this.speedLinesMesh.visible = false;
         this.scene.add(this.speedLinesMesh);
     }
 
@@ -132,36 +137,49 @@ export class SpeedTrailSystem {
         const leftTail = getSock(-0.75, 0.62, 2.15);
         const rightTail = getSock(0.75, 0.62, 2.15);
 
-        // Record history for twin red laser trails
-        if (speedKmh > 10.0) {
+        // Record history for twin red laser trails only when driving
+        if (speedKmh > 12.0) {
             this.leftTailPoints.unshift(leftTail);
             this.rightTailPoints.unshift(rightTail);
             if (this.leftTailPoints.length > this.maxPoints) this.leftTailPoints.pop();
             if (this.rightTailPoints.length > this.maxPoints) this.rightTailPoints.pop();
         } else {
-            if (this.leftTailPoints.length > 0) this.leftTailPoints.pop();
-            if (this.rightTailPoints.length > 0) this.rightTailPoints.pop();
+            // Instantly clear trail history when stopped/slow to prevent stale black line artifacts
+            this.leftTailPoints = [];
+            this.rightTailPoints = [];
         }
 
-        // Taillight laser overall opacity scaling (subtle, translucent photon trail)
+        // Taillight laser overall opacity scaling
         const speedFactor = Math.min(1.0, Math.max(0.0, (speedKmh - 15.0) / 95.0));
-        let targetLaserOpacity = speedFactor * 0.32; // Significantly reduced visibility (down from 0.95)
-        if (isBraking) targetLaserOpacity = 0.50;
+        let targetLaserOpacity = speedFactor * 0.32;
+        if (isBraking && speedKmh > 10.0) targetLaserOpacity = 0.50;
+        if (speedKmh <= 10.0) targetLaserOpacity = 0.0;
 
-        this.laserRedMat.opacity = THREE.MathUtils.lerp(this.laserRedMat.opacity, targetLaserOpacity, 0.15);
+        this.laserRedMat.opacity = THREE.MathUtils.lerp(this.laserRedMat.opacity, targetLaserOpacity, 0.20);
 
-        // Write 3D spiral laser ribbons with dynamic light spread dispersion
-        this._writeSpiralLaserBuffer(this.leftLaserGeo, this.leftTailPoints, 0.16, 0.0);
-        this._writeSpiralLaserBuffer(this.rightLaserGeo, this.rightTailPoints, 0.16, Math.PI);
+        const isLaserVisible = speedKmh > 12.0 && this.laserRedMat.opacity > 0.005 && this.leftTailPoints.length >= 2;
+        this.leftLaserMesh.visible = isLaserVisible;
+        this.rightLaserMesh.visible = isLaserVisible;
+
+        if (isLaserVisible) {
+            this._writeSpiralLaserBuffer(this.leftLaserGeo, this.leftTailPoints, 0.16, 0.0);
+            this._writeSpiralLaserBuffer(this.rightLaserGeo, this.rightTailPoints, 0.16, Math.PI);
+        } else {
+            this.leftLaserGeo.setDrawRange(0, 0);
+            this.rightLaserGeo.setDrawRange(0, 0);
+        }
 
         // Update Ground & Air Speed Lines
         this.speedLinesMesh.position.copy(carPos);
         this.speedLinesMesh.rotation.y = carRotY;
 
-        const lineTargetOpacity = speedKmh > 60 ? Math.min(0.22, (speedKmh - 60) / 120.0) : 0.0; // Soft & translucent
+        const lineTargetOpacity = speedKmh > 60 ? Math.min(0.22, (speedKmh - 60) / 120.0) : 0.0;
         this.speedLineMat.opacity = THREE.MathUtils.lerp(this.speedLineMat.opacity, lineTargetOpacity, 0.15);
 
-        if (speedKmh > 30) {
+        const isSpeedLinesVisible = speedKmh > 60 && this.speedLineMat.opacity > 0.005;
+        this.speedLinesMesh.visible = isSpeedLinesVisible;
+
+        if (isSpeedLinesVisible) {
             const linePosAttr = this.speedLinesMesh.geometry.attributes.position;
             const linePosArr = linePosAttr.array;
             const speedVel = (speedKmh / 3.6) * dt * 2.5;
@@ -229,7 +247,7 @@ export class SpeedTrailSystem {
             const spiralAngle = i * 0.40 + this.animTime * 4.5 + phaseOffset;
 
             // Light spread: spiral radius expands outward smoothly as light disperses backward from the vehicle
-            const spreadFactor = baseRadius + t * 0.52; // Expands outward from 0.16m at car to 0.68m light dispersion
+            const spreadFactor = baseRadius + t * 0.52;
             const rCur = spreadFactor * (0.65 + 0.35 * Math.sin(t * Math.PI));
 
             // Compute 3D spiral offsets with light spread
@@ -255,7 +273,7 @@ export class SpeedTrailSystem {
             posArray[idx6 + 4] = v2y;
             posArray[idx6 + 5] = v2z;
 
-            // Per-vertex color & opacity falloff (soft translucent luminescence fading smoothly)
+            // Per-vertex color & opacity falloff
             const fade = Math.pow(1.0 - t, 2.5) * 0.45;
 
             const red = 0.95 * fade;

@@ -284,18 +284,19 @@ export class Raindrops {
 
         this.drops.forEach((drop, i) => {
             if (!drop.killed) {
+                // Evaporate / shrink droplets over time so water spot buildup clears dynamically
                 drop.age += timeScale / 60;
+                if (this.options.autoShrink) {
+                    const ageDecay = Math.max(0, drop.age - 1.2) * 0.035;
+                    drop.r -= (0.015 + ageDecay) * timeScale;
+                    if (drop.r <= 1.2) drop.killed = true;
+                }
 
                 if (chance((drop.r - (this.options.minR * this.options.dropFallMultiplier)) * (0.1 / this.deltaR) * timeScale)) {
                     drop.momentum += random((drop.r / this.options.maxR) * 4);
                 }
-                if (this.options.autoShrink && drop.r <= this.options.minR && chance(0.05 * timeScale)) {
-                    drop.shrink += 0.01;
-                }
-                drop.r -= drop.shrink * timeScale;
-                if (drop.r <= 0) drop.killed = true;
 
-                if (this.options.raining) {
+                if (this.options.raining && !drop.killed) {
                     drop.lastSpawn += drop.momentum * timeScale * this.options.trailRate;
                     if (drop.lastSpawn > drop.nextSpawn) {
                         const trailDrop = this.createDrop({
@@ -318,26 +319,28 @@ export class Raindrops {
                 drop.spreadX *= Math.pow(0.4, timeScale);
                 drop.spreadY *= Math.pow(0.7, timeScale);
 
-                const moved = drop.momentum > 0;
+                // Continuous Airflow Radial Wind Spreading Physics
+                const moved = (drop.momentum > 0) || (windFactor > 0.08);
                 if (moved && !drop.killed) {
                     // Normalized offset vector from center of screen (-1.0 to +1.0)
                     const dx = (drop.x - cx) / cx;
                     const dy = (drop.y - cy) / cy;
 
                     // When stationary (windFactor = 0): gravity pulls down (+y)
-                    // When driving fast (windFactor > 0): wind pushes droplets OUTWARD in direction of (dx, dy)
-                    const gravityY = drop.momentum * Math.max(0.0, 1.0 - windFactor * 0.5);
-                    const windX = dx * (drop.momentum + 1.5) * windFactor;
-                    const windY = dy * (drop.momentum + 1.5) * windFactor;
+                    // When driving at speed (windFactor > 0): wind continuously pushes droplets OUTWARD in all directions
+                    const gravityY = (drop.momentum + 0.8) * Math.max(0.0, 1.0 - windFactor * 0.5);
+                    const windPush = windFactor * (1.4 + drop.r * 0.06);
+                    const windX = dx * (drop.momentum * 0.5 + windPush);
+                    const windY = dy * (drop.momentum * 0.5 + windPush);
 
-                    drop.x += (windX + drop.momentumX) * this.options.globalTimeScale;
-                    drop.y += (gravityY + windY) * this.options.globalTimeScale;
+                    drop.x += (windX + drop.momentumX) * this.options.globalTimeScale * timeScale;
+                    drop.y += (gravityY + windY) * this.options.globalTimeScale * timeScale;
 
                     if (
-                        drop.y > (this.height / this.scale) + drop.r + 20 ||
-                        drop.y < -drop.r - 20 ||
-                        drop.x < -drop.r - 20 ||
-                        drop.x > (this.width / this.scale) + drop.r + 20
+                        drop.y > (this.height / this.scale) + drop.r + 30 ||
+                        drop.y < -drop.r - 30 ||
+                        drop.x < -drop.r - 30 ||
+                        drop.x > (this.width / this.scale) + drop.r + 30
                     ) {
                         drop.killed = true;
                     }

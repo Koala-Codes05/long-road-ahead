@@ -79,21 +79,21 @@ export class CloudSystem {
             const rand = Math.random();
 
             if (rand < 0.4) {
-                // Low heavy storm layer
-                y = 28 + Math.random() * 18;
-                scale = 1.2 + Math.random() * 1.5;
+                // Low heavy storm layer (High above streetlamps & trees)
+                y = 110 + Math.random() * 35;
+                scale = 1.8 + Math.random() * 2.0;
                 speed = 1.2 + Math.random() * 2.0;
                 baseOpacity = 0.35 + Math.random() * 0.30;
             } else if (rand < 0.8) {
                 // Mid stratus deck
-                y = 46 + Math.random() * 24;
-                scale = 2.0 + Math.random() * 2.2;
+                y = 165 + Math.random() * 45;
+                scale = 2.8 + Math.random() * 2.5;
                 speed = 0.6 + Math.random() * 1.2;
                 baseOpacity = 0.25 + Math.random() * 0.25;
             } else {
                 // High atmospheric Deck
-                y = 70 + Math.random() * 35;
-                scale = 3.5 + Math.random() * 3.0;
+                y = 230 + Math.random() * 70;
+                scale = 4.2 + Math.random() * 3.5;
                 speed = 0.3 + Math.random() * 0.6;
                 baseOpacity = 0.18 + Math.random() * 0.20;
             }

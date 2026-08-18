@@ -120,15 +120,15 @@ export class WetRoadManager {
 
         if (this.world.puddleMat) {
             if (weatherType === 0) {
-                this.world.puddleMat.opacity = 0.88;
-                this.world.puddleMat.envMapIntensity = 2.5;
-                this.world.puddleMat.roughness = 0.012;
+                this.world.puddleMat.opacity = 0.22;
+                this.world.puddleMat.envMapIntensity = 2.8;
+                this.world.puddleMat.roughness = 0.01;
             } else if (weatherType === 1) {
-                this.world.puddleMat.opacity = 0.58;
+                this.world.puddleMat.opacity = 0.12;
                 this.world.puddleMat.envMapIntensity = 1.9;
-                this.world.puddleMat.roughness = 0.025;
+                this.world.puddleMat.roughness = 0.02;
             } else if (weatherType === 2) {
-                this.world.puddleMat.opacity = 0.84;
+                this.world.puddleMat.opacity = 0.18;
                 this.world.puddleMat.envMapIntensity = 2.4;
                 this.world.puddleMat.roughness = 0.015;
             } else {
