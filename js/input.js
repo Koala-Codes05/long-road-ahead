@@ -14,9 +14,16 @@ export class InputManager {
         this.precision = false; // Right Shift (50% steering/acceleration sensitivity)
         this.precision25 = false; // Right Ctrl (25% steering/acceleration sensitivity)
 
-        // Light Controls & Camera View
+        // Experience Controls (one-shot edge triggers)
+        this.vehicleSwitchRequested = false;
+        this.routeSwitchRequested = false;
+        this.studioToggleRequested = false;
+
+        // Light Controls, Horn & Camera View
         this.headlightMode = 1; // 0: OFF, 1: LOW BEAM, 2: HIGH BEAM (default Low Beam on start)
         this.hazards = false;
+        this.horn = false;
+        this.hornPressed = false; // One-shot trigger
         this.signalLeft = false;
         this.signalRight = false;
         this.cameraMode = 0; // 0: 3rd Person Chase View, 1: 1st Person Cockpit View, 2: 1st Person Bumper View
@@ -46,6 +53,8 @@ export class InputManager {
                 this.precision = pressed; break;
             case 'ControlRight':
                 this.precision25 = pressed; break;
+            case 'KeyH':
+                this.horn = pressed; break;
         }
 
         // Toggle triggers (only on keydown)
@@ -58,11 +67,7 @@ export class InputManager {
                     this.headlightMode = (this.headlightMode + 1) % 3;
                     break;
                 case 'KeyH':
-                    this.hazards = !this.hazards;
-                    if (this.hazards) {
-                        this.signalLeft = false;
-                        this.signalRight = false;
-                    }
+                    this.hornPressed = true;
                     break;
                 case 'KeyQ':
                     this.signalLeft = !this.signalLeft;
@@ -81,6 +86,15 @@ export class InputManager {
                 case 'KeyX':
                     this.dissect = !this.dissect;
                     break;
+                case 'F2':
+                    this.vehicleSwitchRequested = true;
+                    break;
+                case 'F3':
+                    this.routeSwitchRequested = true;
+                    break;
+                case 'Escape':
+                    this.studioToggleRequested = true;
+                    break;
             }
         }
 
@@ -90,10 +104,36 @@ export class InputManager {
             'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
             'Space', 'ShiftLeft', 'ShiftRight', 'ControlRight',
             'KeyC', 'KeyV', 'KeyL', 'KeyF', 'KeyH', 'KeyQ', 'KeyE', 'KeyX',
+            'F2', 'F3', 'Escape',
         ];
         if (gameKeys.includes(e.code)) {
             e.preventDefault();
         }
+    }
+
+    /** Consume one-shot vehicle switch request (F2). Returns true once, then resets. */
+    consumeVehicleSwitchRequest() {
+        if (this.vehicleSwitchRequested) {
+            this.vehicleSwitchRequested = false;
+            return true;
+        }
+        return false;
+    }
+
+    /** Consume one-shot route switch request (F3). Returns true once, then resets. */
+    consumeRouteSwitchRequest() {
+        if (this.routeSwitchRequested) {
+            this.routeSwitchRequested = false;
+            return true;
+        }
+        return false;
+    }
+
+    /** Consume one-shot studio toggle request (Escape). Returns true once, then resets. */
+    consumeStudioToggleRequest() {
+        const requested = this.studioToggleRequested;
+        this.studioToggleRequested = false;
+        return requested;
     }
 
     /** Clean up event listeners */

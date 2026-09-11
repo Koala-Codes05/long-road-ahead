@@ -1,0 +1,862 @@
+# Blender MTL File: 'KB3D_NeoCity-Native.blend'
+# Material Count: 62
+
+newmtl KB3D_NEC_AirCon
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_AirCon_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_AirCon_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_AirCon_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_AirCon_metallic.png
+
+newmtl KB3D_NEC_AsphaltHexagonRoof
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_AsphaltHexagonRoof_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_AsphaltHexagonRoof_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_AsphaltHexagonRoof_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_AsphaltHexagonRoof_metallic.png
+
+newmtl KB3D_NEC_BannerA
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_BannerA_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_BannerA_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_BannerA_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_BannerA_metallic.png
+
+newmtl KB3D_NEC_BlackCloth
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_BlackCloth_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_BlackCloth_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_BlackCloth_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_BlackCloth_metallic.png
+
+newmtl KB3D_NEC_Brass
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_Brass_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_Brass_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_Brass_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_Brass_metallic.png
+
+newmtl KB3D_NEC_Cardboard
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_Cardboard_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_Cardboard_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_Cardboard_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_Cardboard_metallic.png
+
+newmtl KB3D_NEC_Concrete
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_Concrete_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_Concrete_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_Concrete_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_Concrete_metallic.png
+
+newmtl KB3D_NEC_ConcreteA
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_ConcreteA_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_ConcreteA_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_ConcreteA_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_ConcreteA_metallic.png
+
+newmtl KB3D_NEC_ConcreteAccent
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_ConcreteAccent_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_ConcreteAccent_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_ConcreteAccent_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_ConcreteAccent_metallic.png
+
+newmtl KB3D_NEC_ConcreteB
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_ConcreteB_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_ConcreteB_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_ConcreteB_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_ConcreteB_metallic.png
+
+newmtl KB3D_NEC_ConcreteTiles
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_ConcreteTiles_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_ConcreteTiles_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_ConcreteTiles_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_ConcreteTiles_metallic.png
+
+newmtl KB3D_NEC_ConcreteWall
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_ConcreteWall_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_ConcreteWall_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_ConcreteWall_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_ConcreteWall_metallic.png
+
+newmtl KB3D_NEC_DarkPanels
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_DarkPanels_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_DarkPanels_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_DarkPanels_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_DarkPanels_metallic.png
+
+newmtl KB3D_NEC_DecalSheet
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_DecalSheet_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_DecalSheet_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_DecalSheet_roughness.png
+map_d KB3DTextures\\4k\\KB3D_NEC_DecalSheet_opacity.png
+refl KB3DTextures\\4k\\KB3D_NEC_DecalSheet_metallic.png
+
+newmtl KB3D_NEC_DecorConcreteB
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_DecorConcreteB_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_DecorConcreteB_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_DecorConcreteB_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_DecorConcreteB_metallic.png
+
+newmtl KB3D_NEC_DecorConcreteCBeige
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_DecorConcreteCBeige_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_DecorConcreteCBeige_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_DecorConcreteCBeige_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_DecorConcreteCBeige_metallic.png
+
+newmtl KB3D_NEC_DecorConcreteCWhite
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_DecorConcreteCWhite_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_DecorConcreteCWhite_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_DecorConcreteCWhite_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_DecorConcreteCWhite_metallic.png
+
+newmtl KB3D_NEC_GalvanizedSteel
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_GalvanizedSteel_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_GalvanizedSteel_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_GalvanizedSteel_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_GalvanizedSteel_metallic.png
+
+newmtl KB3D_NEC_GalvanizedSteelDirt
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_GalvanizedSteelDirt_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_GalvanizedSteelDirt_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_GalvanizedSteelDirt_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_GalvanizedSteelDirt_metallic.png
+
+newmtl KB3D_NEC_GlassBlack
+Ns 323.999994
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+
+newmtl KB3D_NEC_GlassBottle
+Ns 323.999994
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+
+newmtl KB3D_NEC_GlassLamps
+Ns 323.999994
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+
+newmtl KB3D_NEC_GlassTinted
+Ns 323.999994
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+
+newmtl KB3D_NEC_LeavesBush
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_LeavesBush_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_LeavesBush_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_LeavesBush_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_LeavesBush_metallic.png
+
+newmtl KB3D_NEC_Letters
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_Letters_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_Letters_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_Letters_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_Letters_metallic.png
+
+newmtl KB3D_NEC_LightBlue
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_LightBlue_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_LightBlue_basecolor.png
+map_Ke KB3DTextures\\4k\\KB3D_NEC_LightBlue_emissive.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_LightBlue_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_LightBlue_metallic.png
+
+newmtl KB3D_NEC_LightRed
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_LightRed_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_LightRed_basecolor.png
+map_Ke KB3DTextures\\4k\\KB3D_NEC_LightRed_emissive.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_LightRed_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_LightRed_metallic.png
+
+newmtl KB3D_NEC_LightWhite
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_LightWhite_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_LightWhite_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_LightWhite_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_LightWhite_metallic.png
+
+newmtl KB3D_NEC_LightYellow
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_LightYellow_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_LightYellow_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_LightYellow_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_LightYellow_metallic.png
+
+newmtl KB3D_NEC_LightsA
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_LightsA_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_LightsA_basecolor.png
+map_Ke KB3DTextures\\4k\\KB3D_NEC_LightsA_emissive.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_LightsA_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_LightsA_metallic.png
+
+newmtl KB3D_NEC_MetalAccent
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_MetalAccent_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_MetalAccent_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_MetalAccent_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_MetalAccent_metallic.png
+
+newmtl KB3D_NEC_MetalDarkWorn
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_MetalDarkWorn_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_MetalDarkWorn_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_MetalDarkWorn_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_MetalDarkWorn_metallic.png
+
+newmtl KB3D_NEC_MetalGrating
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_MetalGrating_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_MetalGrating_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_MetalGrating_roughness.png
+map_d KB3DTextures\\4k\\KB3D_NEC_MetalGrating_opacity.png
+refl KB3DTextures\\4k\\KB3D_NEC_MetalGrating_metallic.png
+
+newmtl KB3D_NEC_MetalLightGreyWorn
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_MetalLightGreyWorn_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_MetalLightGreyWorn_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_MetalLightGreyWorn_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_MetalLightGreyWorn_metallic.png
+
+newmtl KB3D_NEC_MetalPaintRed
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_MetalPaintRed_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_MetalPaintRed_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_MetalPaintRed_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_MetalPaintRed_metallic.png
+
+newmtl KB3D_NEC_MetalPaintWhiteWorn
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_MetalPaintWhiteWorn_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_MetalPaintWhiteWorn_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_MetalPaintWhiteWorn_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_MetalPaintWhiteWorn_metallic.png
+
+newmtl KB3D_NEC_MetalPaintWorn
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_MetalPaintWorn_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_MetalPaintWorn_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_MetalPaintWorn_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_MetalPaintWorn_metallic.png
+
+newmtl KB3D_NEC_MetalPaintYellow
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_MetalPaintYellow_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_MetalPaintYellow_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_MetalPaintYellow_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_MetalPaintYellow_metallic.png
+
+newmtl KB3D_NEC_OxidizedSteel
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_OxidizedSteel_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_OxidizedSteel_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_OxidizedSteel_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_OxidizedSteel_metallic.png
+
+newmtl KB3D_NEC_PaintBlack
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_PaintBlack_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_PaintBlack_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_PaintBlack_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_PaintBlack_metallic.png
+
+newmtl KB3D_NEC_PaintBlue
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_PaintBlue_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_PaintBlue_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_PaintBlue_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_PaintBlue_metallic.png
+
+newmtl KB3D_NEC_PaintRed
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_PaintRed_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_PaintRed_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_PaintRed_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_PaintRed_metallic.png
+
+newmtl KB3D_NEC_PaintWhiteRusty
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_PaintWhiteRusty_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_PaintWhiteRusty_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_PaintWhiteRusty_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_PaintWhiteRusty_metallic.png
+
+newmtl KB3D_NEC_PaintedMetal
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_PaintedMetal_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_PaintedMetal_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_PaintedMetal_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_PaintedMetal_metallic.png
+
+newmtl KB3D_NEC_PaperWhite
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_PaperWhite_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_PaperWhite_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_PaperWhite_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_PaperWhite_metallic.png
+
+newmtl KB3D_NEC_PlasticBlack
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_PlasticBlack_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_PlasticBlack_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_PlasticBlack_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_PlasticBlack_metallic.png
+
+newmtl KB3D_NEC_PlasticWhite
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_PlasticWhite_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_PlasticWhite_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_PlasticWhite_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_PlasticWhite_metallic.png
+
+newmtl KB3D_NEC_PlasticYellow
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_PlasticYellow_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_PlasticYellow_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_PlasticYellow_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_PlasticYellow_metallic.png
+
+newmtl KB3D_NEC_RedWhiteStripes
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_RedWhiteStripes_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_RedWhiteStripes_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_RedWhiteStripes_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_RedWhiteStripes_metallic.png
+
+newmtl KB3D_NEC_Rubber
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_Rubber_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_Rubber_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_Rubber_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_Rubber_metallic.png
+
+newmtl KB3D_NEC_SatinSteel
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_SatinSteel_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_SatinSteel_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_SatinSteel_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_SatinSteel_metallic.png
+
+newmtl KB3D_NEC_Screens
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_Screens_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_Screens_basecolor.png
+map_Ke KB3DTextures\\4k\\KB3D_NEC_Screens_emissive.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_Screens_roughness.png
+map_d KB3DTextures\\4k\\KB3D_NEC_Screens_opacity.png
+refl KB3DTextures\\4k\\KB3D_NEC_Screens_metallic.png
+
+newmtl KB3D_NEC_SpeedwayTiles
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_SpeedwayTiles_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_SpeedwayTiles_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_SpeedwayTiles_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_SpeedwayTiles_metallic.png
+
+newmtl KB3D_NEC_SteelRaw
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_SteelRaw_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_SteelRaw_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_SteelRaw_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_SteelRaw_metallic.png
+
+newmtl KB3D_NEC_StreetTiles
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_StreetTiles_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_StreetTiles_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_StreetTiles_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_StreetTiles_metallic.png
+
+newmtl KB3D_NEC_TarpA
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_TarpA_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_TarpA_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_TarpA_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_TarpA_metallic.png
+
+newmtl KB3D_NEC_TreeWalnutBark
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_TreeWalnutBark_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_TreeWalnutBark_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_TreeWalnutBark_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_TreeWalnutBark_metallic.png
+
+newmtl KB3D_NEC_TreeWlnutLeaf
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_TreeWlnutLeaf_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_TreeWlnutLeaf_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_TreeWlnutLeaf_roughness.png
+map_d KB3DTextures\\4k\\KB3D_NEC_TreeWlnutLeaf_opacity.png
+refl KB3DTextures\\4k\\KB3D_NEC_TreeWlnutLeaf_metallic.png
+
+newmtl KB3D_NEC_WhitePanels
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_WhitePanels_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_WhitePanels_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_WhitePanels_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_WhitePanels_metallic.png
+
+newmtl KB3D_NEC_Wood
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_Wood_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_Wood_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_Wood_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_Wood_metallic.png
+
+newmtl KB3D_NEC_WoodDarkGreyTower
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_WoodDarkGreyTower_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_WoodDarkGreyTower_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_WoodDarkGreyTower_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_WoodDarkGreyTower_metallic.png
+
+newmtl KB3D_NEC_WoodLacquered
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump KB3DTextures\\4k\\KB3D_NEC_WoodLacquered_normal.png
+map_Kd KB3DTextures\\4k\\KB3D_NEC_WoodLacquered_basecolor.png
+map_Ns KB3DTextures\\4k\\KB3D_NEC_WoodLacquered_roughness.png
+refl KB3DTextures\\4k\\KB3D_NEC_WoodLacquered_metallic.png

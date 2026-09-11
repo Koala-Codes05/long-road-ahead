@@ -27,6 +27,19 @@
     <!-- Driveclub HUD Overlay -->
     <div id="hud" style="display: none;">
 
+        <!-- Experience Badge (Active Car + Route) -->
+        <div id="experience-badge" aria-live="polite">
+            <span id="experience-route">HIGHWAY</span>
+            <span id="experience-car">FERRARI 458</span>
+        </div>
+
+        <!-- Studio Showroom Overlay -->
+        <section id="studio-overlay" aria-live="polite" aria-hidden="true">
+            <p class="studio-kicker">PRIVATE COLLECTION</p>
+            <h2 id="studio-car-name">FERRARI 458</h2>
+            <p id="studio-status">F2 — CHANGE CAR · ESC — DRIVE</p>
+        </section>
+
         <!-- Top Left: Position & Lap Time (Hidden) -->
         <div id="dc-top-left" style="display: none;">
             <div class="dc-label">POS</div>
@@ -69,6 +82,38 @@
             <button class="weather-btn" data-type="1">DRIZZLE 🌧️</button>
             <button class="weather-btn" data-type="2">CLOUDY DAY ☁️</button>
             <button class="weather-btn" data-type="3">CLEAR 🌙</button>
+        </div>
+
+        <!-- YouTube Cassette Music Player Widget -->
+        <div id="music-hud-widget">
+            <div class="music-card">
+                <div class="music-header">
+                    <div class="music-icon-wrap">
+                        <span class="cassette-icon">📻</span>
+                        <div class="soundwave-bar-anim" id="soundwave-anim">
+                            <span></span><span></span><span></span><span></span>
+                        </div>
+                    </div>
+                    <div class="music-track-ticker">
+                        <div id="yt-track-title" class="marquee-text">INITIALIZING YOUTUBE RADIO...</div>
+                    </div>
+                    <button id="yt-drawer-toggle" title="Paste YouTube URL">🔗</button>
+                </div>
+                <div class="music-controls">
+                    <button id="yt-prev-btn" title="Previous Track">⏮</button>
+                    <button id="yt-play-btn" class="play-active" title="Play/Pause">⏯</button>
+                    <button id="yt-next-btn" title="Next Track">⏭</button>
+                    <div class="music-vol-box">
+                        <span class="vol-icon" id="yt-mute-btn" title="Mute/Unmute">🔊</span>
+                        <input type="range" id="yt-vol-slider" min="0" max="100" value="50" class="vol-range" title="Volume">
+                    </div>
+                </div>
+                <!-- Expandable YouTube Link / Playlist Input Drawer -->
+                <div id="yt-url-drawer" class="drawer-closed">
+                    <input type="text" id="yt-url-input" placeholder="Paste YouTube Playlist or Video URL...">
+                    <button id="yt-url-submit">LOAD</button>
+                </div>
+            </div>
         </div>
 
         <!-- Vehicle Lighting & Camera Status Bar -->
@@ -119,12 +164,16 @@
             <span>S/↓</span> Brake &nbsp;
             <span>A/D</span> Steer &nbsp;
             <span>C/V</span> Camera &nbsp;
-            <span>R</span> Rain Mode &nbsp;
-            <span>X</span> Dissect Car &nbsp;
+            <span>R</span> Rain &nbsp;
+            <span>M</span> Music &nbsp;
+            <span>X</span> Dissect &nbsp;
             <span>SPACE</span> Drift &nbsp;
             <span>L-SHIFT</span> Nitro &nbsp;
             <span>L</span> Lights &nbsp;
-            <span>H</span> Hazards
+            <span>H</span> Hazards &nbsp;
+            <span>F2</span> Car &nbsp;
+            <span>F3</span> Road &nbsp;
+            <span>ESC</span> Studio
         </div>
     </div>
 

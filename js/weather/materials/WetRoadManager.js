@@ -20,7 +20,11 @@ export class WetRoadManager {
 
         this.uTime = { value: 0 };
         this.uWetness = { value: 1.0 };
-        this.uRippleStrength = { value: 0.75 };
+        this.uRippleStrength = { value: 0.65 };
+
+        this.puddleNoiseTex = new THREE.TextureLoader().load('assets/Textures/puddle_noise.png');
+        this.puddleNoiseTex.wrapS = THREE.RepeatWrapping;
+        this.puddleNoiseTex.wrapT = THREE.RepeatWrapping;
 
         this._setupRoadShader();
         this.applyWetRoad();
@@ -34,9 +38,10 @@ export class WetRoadManager {
         roadMat.userData.uWetness = this.uWetness;
         roadMat.userData.uRippleStrength = this.uRippleStrength;
         roadMat.userData.uRippleMap = { value: this.rippleNormalTex };
+        roadMat.userData.uPuddleMap = { value: this.puddleNoiseTex };
         roadMat.userData.uPlanarMap = { value: this.planarReflection ? this.planarReflection.renderTarget.texture : null };
         roadMat.userData.uTextureMatrix = { value: this.planarReflection ? this.planarReflection.textureMatrix : new THREE.Matrix4() };
-        roadMat.userData.uPlanarIntensity = { value: 0.80 };
+        roadMat.userData.uPlanarIntensity = { value: 0.35 };
 
         // Inject dual-layer animated rain ripple normal map & planar reflection shader patches
         roadMat.onBeforeCompile = (shader) => {
@@ -44,6 +49,7 @@ export class WetRoadManager {
             shader.uniforms.uWetness = roadMat.userData.uWetness;
             shader.uniforms.uRippleStrength = roadMat.userData.uRippleStrength;
             shader.uniforms.uRippleMap = roadMat.userData.uRippleMap;
+            shader.uniforms.uPuddleMap = roadMat.userData.uPuddleMap;
             shader.uniforms.uPlanarMap = roadMat.userData.uPlanarMap;
             shader.uniforms.uTextureMatrix = roadMat.userData.uTextureMatrix;
             shader.uniforms.uPlanarIntensity = roadMat.userData.uPlanarIntensity;
@@ -86,7 +92,7 @@ export class WetRoadManager {
                     vec3 blendedRipple = normalize(ripNorm1 + ripNorm2);
                     float activeRippleStrength = uWetness * uRippleStrength;
                     
-                    // Perturb surface normal vector in tangent space for moving N·H specular highlights
+                    // Perturb surface normal vector in tangent space for moving specular highlights
                     normal = normalize(normal + vec3(blendedRipple.xy * activeRippleStrength, 0.0));
                 }
                 `
@@ -100,20 +106,20 @@ export class WetRoadManager {
                     vec2 reflUv = vReflectionUv.xy / vReflectionUv.w;
                     
                     // Distance-Adaptive SSR Sample Cascades:
-                    //  0 - 30m : High Quality SSR (32 sample equivalent, weight = 1.0)
-                    // 30 - 80m : Mid Quality SSR (16 sample equivalent, weight = 0.5)
-                    // 80m+     : Low Quality SSR -> Prefiltered EnvMap Probe Fallback (weight = 0.0)
+                    //  0 - 30m : High Quality SSR (32 sample equivalent)
+                    // 30 - 80m : Mid Quality SSR
+                    // 80m+     : Fallback EnvMap Probe
                     float viewDist = length(vViewPosition);
-                    float ssrDistanceWeight = clamp(1.0 - (viewDist - 30.0) / 50.0, 0.0, 1.0);
+                    float ssrDistanceWeight = clamp(1.0 - (viewDist - 25.0) / 45.0, 0.0, 1.0);
                     
-                    // Distance-scaled ripple distortion (fine glints near camera, smooth far away)
-                    float rippleDistortScale = mix(0.0015, 0.0040, ssrDistanceWeight);
+                    // Distance-scaled ripple distortion
+                    float rippleDistortScale = mix(0.0015, 0.0035, ssrDistanceWeight);
                     vec2 distUv = reflUv + vec2(sin(uTime * 3.5 + vUv.y * 25.0), cos(uTime * 2.8 + vUv.x * 25.0)) * rippleDistortScale * uWetness;
                     
                     vec4 planarColor = texture2D(uPlanarMap, distUv);
                     
-                    // Blend factor: High-detail SSR near camera, smoothly fading into EnvMap Probe at distance
-                    float reflFactor = clamp(uWetness * uPlanarIntensity * (1.0 - roughness) * ssrDistanceWeight, 0.0, 0.75);
+                    // Blend factor: Controlled wet road sheen (max 0.30 weight for realistic asphalt)
+                    float reflFactor = clamp(uWetness * uPlanarIntensity * (1.0 - roughness) * ssrDistanceWeight * 0.50, 0.0, 0.30);
                     
                     gl_FragColor.rgb = mix(gl_FragColor.rgb, planarColor.rgb, reflFactor);
                 }
@@ -130,23 +136,23 @@ export class WetRoadManager {
     applyWetRoad() {
         if (this.world && this.world.roadMat) {
             const roadMat = this.world.roadMat;
-            roadMat.roughness = 0.08;
-            roadMat.metalness = 0.90;
-            roadMat.envMapIntensity = 3.2;
+            roadMat.roughness = 0.28;
+            roadMat.metalness = 0.03;
+            roadMat.envMapIntensity = 1.20;
             if (this.world.roadNormalMap) {
                 roadMat.normalMap = this.world.roadNormalMap;
-                roadMat.normalScale.set(0.70, 0.70);
+                roadMat.normalScale.set(0.75, 0.75);
             }
             if (this.world.roadHeightMap) {
                 roadMat.bumpMap = this.world.roadHeightMap;
-                roadMat.bumpScale = 0.008;
+                roadMat.bumpScale = 0.020;
             }
-            roadMat.color.setHex(0x666666);
+            roadMat.color.setHex(0x3a3f47);
         }
         if (this.world && this.world.guardrailMat) {
-            this.world.guardrailMat.roughness = 0.15;
-            this.world.guardrailMat.metalness = 0.75;
-            this.world.guardrailMat.envMapIntensity = 1.6;
+            this.world.guardrailMat.roughness = 0.20;
+            this.world.guardrailMat.metalness = 0.70;
+            this.world.guardrailMat.envMapIntensity = 1.4;
         }
     }
 
@@ -156,9 +162,9 @@ export class WetRoadManager {
 
     /**
      * Updates road PBR parameters based on weather type:
-     *  - 0: STORM -> Wetness = 1.0 (Deep water, roughness = 0.08)
-     *  - 1: DRIZZLE -> Wetness = 0.55 (Wet road, roughness = 0.25)
-     *  - 2: CLOUDY DAY -> Wetness = 0.30 (Damp road, roughness = 0.42)
+     *  - 0: STORM -> Wetness = 1.0 (Deep water, roughness = 0.28)
+     *  - 1: DRIZZLE -> Wetness = 0.55 (Wet road, roughness = 0.42)
+     *  - 2: CLOUDY DAY -> Wetness = 0.30 (Damp road, roughness = 0.58)
      *  - 3: CLEAR -> Wetness = 0.0 (Dry road, roughness = 0.75)
      */
     updatePreset(weatherType) {
@@ -176,9 +182,9 @@ export class WetRoadManager {
     /**
      * Dynamic per-frame update loop.
      * Continuously interpolates material properties based on current wetness:
-     *  - Dry road (w = 0.0): roughness = 0.75
-     *  - Wet road (w = 0.5): roughness = 0.25
-     *  - Deep water (w = 1.0): roughness = 0.08
+     *  - Dry road (w = 0.0): roughness = 0.75, metalness = 0.01, color = 0x888888
+     *  - Wet road (w = 0.5): roughness = 0.45, metalness = 0.02, color = 0x555555
+     *  - Deep water (w = 1.0): roughness = 0.28, metalness = 0.04, color = 0x3a3f47
      */
     update(dt, renderer = null, camera = null) {
         if (!this.world || !this.world.roadMat) return;
@@ -197,24 +203,24 @@ export class WetRoadManager {
 
         const roadMat = this.world.roadMat;
 
-        // 1. Roughness: Dry (0.75) -> Wet (0.25) -> Deep Water (0.08)
-        roadMat.roughness = THREE.MathUtils.lerp(0.75, 0.08, Math.pow(w, 0.8));
+        // 1. Roughness: Dry (0.75) -> Wet (0.45) -> Storm (0.28)
+        roadMat.roughness = THREE.MathUtils.lerp(0.75, 0.28, Math.pow(w, 0.8));
 
-        // 2. Specular / Metalness Response: Dry (0.08) -> Wet (0.45) -> Deep Water (0.90)
-        roadMat.metalness = THREE.MathUtils.lerp(0.08, 0.90, w);
+        // 2. Specular / Metalness Response: Dielectric Asphalt (0.01 -> 0.04 max)
+        roadMat.metalness = THREE.MathUtils.lerp(0.01, 0.04, w);
 
-        // 3. Environment Reflection Intensity (envMapIntensity): Dry (0.50) -> Wet (1.8) -> Deep Water (3.2)
-        roadMat.envMapIntensity = THREE.MathUtils.lerp(0.50, 3.20, w);
+        // 3. Environment Reflection Intensity (envMapIntensity): Dry (0.40) -> Storm (1.20)
+        roadMat.envMapIntensity = THREE.MathUtils.lerp(0.40, 1.20, w);
 
-        // 4. Normal & Bump Intensity: Water film smoothes micro-asphalt relief under deep water
-        const bumpScale = THREE.MathUtils.lerp(0.045, 0.008, w);
+        // 4. Normal & Bump Intensity: Retain asphalt micro-relief texture
+        const bumpScale = THREE.MathUtils.lerp(0.045, 0.020, w);
         roadMat.bumpScale = bumpScale;
-        const normScale = THREE.MathUtils.lerp(0.85, 0.60, w);
+        const normScale = THREE.MathUtils.lerp(0.85, 0.70, w);
         roadMat.normalScale.set(normScale, normScale);
 
-        // 5. Porosity Asphalt Darkening: White base (0xffffff) -> Dark wet asphalt (0x666666)
-        const dryColor = new THREE.Color(0xffffff);
-        const wetColor = new THREE.Color(0x666666);
+        // 5. Porosity Asphalt Darkening: Light dry asphalt (0x999999) -> Dark wet asphalt (0x3a3f47)
+        const dryColor = new THREE.Color(0x999999);
+        const wetColor = new THREE.Color(0x3a3f47);
         roadMat.color.lerpColors(dryColor, wetColor, w);
 
         // 6. Animate Rain Ripple Normal Map Texture Offset for puddle mesh
@@ -223,21 +229,21 @@ export class WetRoadManager {
             this.rippleNormalTex.offset.y += dt * 0.22 * (w + 0.1);
         }
 
-        // 7. Puddle Depth & Opacity: Dry (0.0) -> Wet (0.15) -> Deep Water (0.35)
+        // 7. Puddle Depth & Opacity: Dry (0.0) -> Wet (0.15) -> Storm (0.25)
         if (this.world.puddleMat) {
-            this.world.puddleMat.opacity = THREE.MathUtils.lerp(0.0, 0.35, w);
-            this.world.puddleMat.roughness = THREE.MathUtils.lerp(0.5, 0.01, w);
-            this.world.puddleMat.envMapIntensity = THREE.MathUtils.lerp(0.5, 3.0, w);
+            this.world.puddleMat.opacity = THREE.MathUtils.lerp(0.0, 0.25, w);
+            this.world.puddleMat.roughness = THREE.MathUtils.lerp(0.5, 0.12, w);
+            this.world.puddleMat.envMapIntensity = THREE.MathUtils.lerp(0.5, 1.5, w);
         }
 
         // 8. Emissive Lane Lines Reflection Sheen
         if (this.world.whiteLineMat) {
-            this.world.whiteLineMat.emissiveIntensity = THREE.MathUtils.lerp(0.3, 1.8, w);
-            this.world.whiteLineMat.roughness = THREE.MathUtils.lerp(0.6, 0.05, w);
+            this.world.whiteLineMat.emissiveIntensity = THREE.MathUtils.lerp(0.5, 1.2, w);
+            this.world.whiteLineMat.roughness = THREE.MathUtils.lerp(0.6, 0.20, w);
         }
         if (this.world.yellowLineMat) {
-            this.world.yellowLineMat.emissiveIntensity = THREE.MathUtils.lerp(0.4, 2.0, w);
-            this.world.yellowLineMat.roughness = THREE.MathUtils.lerp(0.6, 0.05, w);
+            this.world.yellowLineMat.emissiveIntensity = THREE.MathUtils.lerp(0.6, 1.4, w);
+            this.world.yellowLineMat.roughness = THREE.MathUtils.lerp(0.6, 0.20, w);
         }
     }
 }

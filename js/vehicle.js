@@ -8,6 +8,25 @@ import { DriftingSystem } from './drifting.js';
 import { ManeuversSystem } from './maneuvers.js';
 import { getRoadPoint, getRoadWidth } from './world.js';
 
+/** Car presentation + tuning definitions. The first entry is the default. */
+const CAR_DEFINITIONS = [
+    {
+        id: 'ferrari', label: 'FERRARI 458', route: 'highway',
+        asset: 'assets/ferrari.glb',
+        mass: 1420, wheelbase: 2.65, wheelRadius: 0.38,
+        torqueMultiplier: 1.0, brakeMultiplier: 1.0, gripMultiplier: 1.0,
+        topSpeedKmh: 305, nitroTopSpeedKmh: 335,
+    },
+    {
+        id: 'audi', label: 'AUDI NOVULARI', route: 'city',
+        asset: 'assets/Cars/audi_novulari.glb',
+        mass: 1580, wheelbase: 2.85, wheelRadius: 0.37,
+        torqueMultiplier: 0.92, brakeMultiplier: 1.08, gripMultiplier: 1.14,
+        topSpeedKmh: 280, nitroTopSpeedKmh: 305,
+        wheelPartMatchers: ['tire', 'brake disk', 'brake_disk', 'metal_red'],
+    },
+];
+
 /**
  * Vehicle — Modular Core Supercar Physics & Rendering Engine.
  * Integrates Accelerating, Turning, Drifting, and Maneuver systems with 3D suspension,
@@ -34,7 +53,7 @@ export class Vehicle {
         this.speed = 0;     // Telemetry alias
         this.maxSpeed = 315 / 3.6;
 
-        // Dynamic Load Transfer & Suspension
+        // Dynamic Load Transfer & Four-Corner Suspension
         this.aLong = 0;
         this.aLat = 0;
         this.pitchAngle = 0;
@@ -44,6 +63,34 @@ export class Vehicle {
         this.heaveDisplacement = 0;
         this.heaveVel = 0;
         this.camera = null;
+
+        this.visualBody = new THREE.Group();
+        this.visualBody.name = 'visual-chassis';
+        this.visualBody.rotation.order = 'YXZ';
+        this.mesh = new THREE.Group();
+        this.mesh.position.set(0, 0, 0);
+        this.mesh.add(this.visualBody);
+        this.scene.add(this.mesh);
+
+        this.wheelCornerData = [
+            { id: 'fl', x: -1.05, z: -1.5, isFront: true },
+            { id: 'fr', x: 1.05, z: -1.5, isFront: true },
+            { id: 'rl', x: -1.05, z: 1.4, isFront: false },
+            { id: 'rr', x: 1.05, z: 1.4, isFront: false },
+        ];
+        this.wheelStates = this.wheelCornerData.map((c) => ({
+            ...c,
+            compression: 0,
+            velocity: 0,
+            force: 0,
+            travel: 0,
+        }));
+        this.suspensionSpring = 48.0;
+        this.suspensionDamper = 9.0;
+        this.suspensionTravelMax = 0.16;
+        this.defaultSuspensionAxis = new THREE.Vector3(0, 1, 0);
+        this.defaultSteerAxis = new THREE.Vector3(0, 1, 0);
+        this.defaultWheelSpinAxis = new THREE.Vector3(1, 0, 0);
 
         // Modular Subsystems
         this.acceleratingSystem = new AcceleratingSystem(this);
@@ -58,17 +105,13 @@ export class Vehicle {
         this.gltfSteerPivots = [];
         this.isGltfLoaded = false;
 
-        this.mesh = new THREE.Group();
-        this.mesh.position.set(0, 0, 0);
-        this.scene.add(this.mesh);
-
         this._initLightingSystem();
         this._initVehicleFakeEnvironmentLights();
         this._initParticleEffects();
         this._initContactShadow();
         this._initCarAmbientOcclusion();
 
-        // Procedural fallback car model + Ferrari GLTF load
+        // Procedural fallback car model + first car GLTF load
         this.proceduralMesh = this._createCarModel();
         this.proceduralMesh.traverse((child) => {
             if (child.isMesh) {
@@ -76,8 +119,17 @@ export class Vehicle {
                 child.receiveShadow = true;
             }
         });
-        this.mesh.add(this.proceduralMesh);
-        this._loadFerrariModel();
+        this.visualBody.add(this.proceduralMesh);
+
+        // Multi-car selection state
+        this.activeCarIndex = 0;
+        this.activeCarId = CAR_DEFINITIONS[0].id;
+        this.driveTuning = CAR_DEFINITIONS[0];
+        this._carModelCache = new Map(); // id -> THREE.Object3D
+        this._carLoadPromises = new Map(); // id -> Promise
+
+        // Start loading the default car
+        this._activateCar(CAR_DEFINITIONS[0]);
     }
 
     // Telemetry Helpers for HUD
@@ -699,10 +751,19 @@ export class Vehicle {
 
         this.wheelSpinGroups = [];
         this.frontSteerPivots = [];
+        this.wheelAssemblyGroups = [];
 
         wheelCfg.forEach(({ x, z, front, side }) => {
+            // Suspension pivot holds the full corner assembly and moves vertically
+            const suspensionPivot = new THREE.Group();
+            const restPosition = new THREE.Vector3(x, 0.38, z);
+            suspensionPivot.position.copy(restPosition);
+            rootGroup.add(suspensionPivot);
+            this.wheelAssemblyGroups.push(suspensionPivot);
+
             // Kingpin Steering Pivot Group (handles steering angle Y rotation)
             const steerPivot = new THREE.Group();
+            suspensionPivot.add(steerPivot);
 
             // Stationary Brake Caliper (Attached to steerPivot)
             const caliper = new THREE.Mesh(caliperGeo, caliperMat);
@@ -727,10 +788,14 @@ export class Vehicle {
 
             steerPivot.add(spinGroup);
 
-            const homePos = [x, 0.38, z];
-            const explodedPos = [x + side * 1.6, 0.38, z];
-
-            addDissectedPart(steerPivot, homePos, explodedPos);
+            const entry = {
+                mesh: suspensionPivot,
+                homePos: restPosition.clone(),
+                explodedPos: new THREE.Vector3(x + side * 1.6, 0.38, z),
+            };
+            this.dissectedParts.push(entry);
+            suspensionPivot.userData.dissectEntry = entry;
+            this._applyWheelDisplacement(suspensionPivot, entry, 0);
 
             this.wheelSpinGroups.push(spinGroup);
             if (front) this.frontSteerPivots.push(steerPivot);
@@ -741,101 +806,549 @@ export class Vehicle {
     }
 
     _loadFerrariModel() {
-        try {
-            const dracoLoader = new DRACOLoader();
-            dracoLoader.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/libs/draco/gltf/');
+        // Legacy entry point — delegates to generic car loader for backwards compatibility
+        return this._loadCarModel(CAR_DEFINITIONS[0]);
+    }
 
-            const loader = new GLTFLoader();
-            loader.setDRACOLoader(dracoLoader);
+    /**
+     * Load and cache a GLTF car model by definition. Returns a promise that resolves
+     * when the model is ready. The Ferrari gets special treatment for named wheel meshes
+     * and body material; the Audi is normalized by bounding box and has shadow casting
+     * disabled to stay within the triangle budget.
+     */
+    _loadCarModel(definition) {
+        if (this._carLoadPromises.has(definition.id)) {
+            return this._carLoadPromises.get(definition.id);
+        }
 
-            loader.load('assets/ferrari.glb', (gltf) => {
-                const carModel = gltf.scene;
-                carModel.scale.set(1.0, 1.0, 1.0);
-                carModel.position.set(0, 0, 0);
+        const promise = new Promise((resolve) => {
+            try {
+                const dracoLoader = new DRACOLoader();
+                dracoLoader.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/libs/draco/gltf/');
+                const loader = new GLTFLoader();
+                loader.setDRACOLoader(dracoLoader);
 
-                carModel.traverse((child) => {
-                    if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = true;
+                loader.load(definition.asset, (gltf) => {
+                    const carModel = gltf.scene;
 
-                        if (child.name === 'lights') {
-                            this.gltfHeadlightMat = new THREE.MeshStandardMaterial({
-                                color: 0xdde8ff,
-                                emissive: 0xdde8ff,
-                                emissiveIntensity: 0.35,
-                                transparent: true,
-                                opacity: 0.55,
-                                side: THREE.FrontSide,
-                            });
-                            this.gltfHeadlightMesh = child;
-                            child.material = this.gltfHeadlightMat;
-                        }
-                        if (child.name === 'lights_red') {
-                            this.gltfTaillightMat = new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 0.8 });
-                            child.material = this.gltfTaillightMat;
-                        }
+                    if (definition.id === 'ferrari') {
+                        this._setupFerrariModel(carModel);
+                    } else {
+                        this._setupGenericModel(carModel, definition);
+                    }
+
+                    carModel.visible = false;
+                    this.visualBody.add(carModel);
+                    this._carModelCache.set(definition.id, carModel);
+                    resolve(carModel);
+                }, undefined, (err) => {
+                    console.warn(`${definition.label} GLTF load warning (using procedural fallback):`, err);
+                    resolve(null);
+                });
+            } catch (e) {
+                console.warn('GLTFLoader error:', e);
+                resolve(null);
+            }
+        });
+
+        this._carLoadPromises.set(definition.id, promise);
+        return promise;
+    }
+
+    /** Ferrari-specific model setup: named wheels, body paint material, headlight/taillight materials */
+    _setupFerrariModel(carModel) {
+        carModel.scale.set(1.0, 1.0, 1.0);
+        carModel.position.set(0, 0, 0);
+
+        carModel.traverse((child) => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+
+                if (child.name === 'lights') {
+                    this.gltfHeadlightMat = new THREE.MeshStandardMaterial({
+                        color: 0xdde8ff,
+                        emissive: 0xdde8ff,
+                        emissiveIntensity: 0.35,
+                        transparent: true,
+                        opacity: 0.55,
+                        side: THREE.FrontSide,
+                    });
+                    this.gltfHeadlightMesh = child;
+                    child.material = this.gltfHeadlightMat;
+                }
+                if (child.name === 'lights_red') {
+                    this.gltfTaillightMat = new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 0.8 });
+                    child.material = this.gltfTaillightMat;
+                }
+            }
+        });
+
+        const wheelFL = carModel.getObjectByName('wheel_fl');
+        const wheelFR = carModel.getObjectByName('wheel_fr');
+        const wheelRL = carModel.getObjectByName('wheel_rl');
+        const wheelRR = carModel.getObjectByName('wheel_rr');
+        if (wheelFL && wheelFR && wheelRL && wheelRR) {
+            const spinWheels = [];
+            const steerPivots = [];
+
+            const rawWheels = [
+                { mesh: wheelFL, isFront: true },
+                { mesh: wheelFR, isFront: true },
+                { mesh: wheelRL, isFront: false },
+                { mesh: wheelRR, isFront: false },
+            ];
+
+            rawWheels.forEach(({ mesh, isFront }) => {
+                const parent = mesh.parent;
+                const suspensionPivot = new THREE.Group();
+                suspensionPivot.position.copy(mesh.position);
+                parent.add(suspensionPivot);
+
+                const steerPivot = new THREE.Group();
+                suspensionPivot.add(steerPivot);
+
+                const spinGroup = new THREE.Group();
+                steerPivot.add(spinGroup);
+
+                mesh.position.set(0, 0, 0);
+                spinGroup.add(mesh);
+
+                suspensionPivot.userData.restPosition = suspensionPivot.position.clone();
+                suspensionPivot.userData.cornerIndex = spinWheels.length;
+
+                spinWheels.push(spinGroup);
+                if (isFront) {
+                    steerPivots.push(steerPivot);
+                }
+            });
+
+            carModel.userData.spinWheels = spinWheels;
+            carModel.userData.steerPivots = steerPivots;
+        } else {
+            carModel.userData.spinWheels = [];
+            carModel.userData.steerPivots = [];
+        }
+
+        const bodyMesh = carModel.getObjectByName('body');
+        if (bodyMesh) {
+            this.bodyMaterial = new THREE.MeshPhysicalMaterial({
+                color: 0xd11a2a,
+                metalness: 0.35,
+                roughness: 0.16,
+                clearcoat: 1.0,
+                clearcoatRoughness: 0.06,
+                reflectivity: 0.9,
+            });
+            bodyMesh.material = this.bodyMaterial;
+        }
+    }
+
+    _buildTriangleGeometry(sourceGeometry, vertexIndices) {
+        const geometry = new THREE.BufferGeometry();
+
+        Object.entries(sourceGeometry.attributes).forEach(([name, attribute]) => {
+            const ArrayType = attribute.array.constructor;
+            const values = new ArrayType(vertexIndices.length * attribute.itemSize);
+
+            for (let i = 0; i < vertexIndices.length; i++) {
+                const sourceIndex = vertexIndices[i];
+                for (let component = 0; component < attribute.itemSize; component++) {
+                    values[i * attribute.itemSize + component] = attribute.getComponent
+                        ? attribute.getComponent(sourceIndex, component)
+                        : attribute.array[sourceIndex * attribute.itemSize + component];
+                }
+            }
+
+            geometry.setAttribute(name, new THREE.BufferAttribute(values, attribute.itemSize, attribute.normalized));
+        });
+
+        geometry.computeBoundingBox();
+        geometry.computeBoundingSphere();
+        return geometry;
+    }
+
+    _computeGenericWheelCenters(tireMesh) {
+        if (!tireMesh || !tireMesh.geometry) return null;
+
+        const position = tireMesh.geometry.attributes.position;
+        const index = tireMesh.geometry.index;
+        const triangleCount = index ? index.count : position.count;
+        const buckets = [
+            { name: 'fl', count: 0, x: 0, y: 0, z: 0 },
+            { name: 'fr', count: 0, x: 0, y: 0, z: 0 },
+            { name: 'rl', count: 0, x: 0, y: 0, z: 0 },
+            { name: 'rr', count: 0, x: 0, y: 0, z: 0 },
+        ];
+
+        for (let i = 0; i < triangleCount; i += 3) {
+            const ia = index ? index.getX(i) : i;
+            const ib = index ? index.getX(i + 1) : i + 1;
+            const ic = index ? index.getX(i + 2) : i + 2;
+            const x = (position.getX(ia) + position.getX(ib) + position.getX(ic)) / 3;
+            const y = (position.getY(ia) + position.getY(ib) + position.getY(ic)) / 3;
+            const z = (position.getZ(ia) + position.getZ(ib) + position.getZ(ic)) / 3;
+
+            const bucketIndex = x > 0 ? (y < 0 ? 0 : 1) : (y < 0 ? 2 : 3);
+            const bucket = buckets[bucketIndex];
+            bucket.count++;
+            bucket.x += x;
+            bucket.y += y;
+            bucket.z += z;
+        }
+
+        if (buckets.some((bucket) => bucket.count === 0)) return null;
+        return buckets.map((bucket) => new THREE.Vector3(
+            bucket.x / bucket.count,
+            bucket.y / bucket.count,
+            bucket.z / bucket.count,
+        ));
+    }
+
+    _setupGenericWheelPivots(carModel, definition) {
+        const matchers = definition.wheelPartMatchers || [];
+        if (matchers.length === 0) {
+            return { spinWheels: [], steerPivots: [] };
+        }
+
+        const candidateMeshes = [];
+        carModel.traverse((node) => {
+            if (!node.isMesh) return;
+            const nodeName = (node.name || '').toLowerCase();
+            const materialName = (node.material && node.material.name ? node.material.name : '').toLowerCase();
+            if (matchers.some((matcher) => nodeName.includes(matcher) || materialName.includes(matcher))) {
+                candidateMeshes.push(node);
+            }
+        });
+
+        const tireMesh = candidateMeshes.find((mesh) => (mesh.name || '').toLowerCase().includes('tire'));
+        const centers = this._computeGenericWheelCenters(tireMesh) || [
+            new THREE.Vector3(1.694, -1.181, 0.380),
+            new THREE.Vector3(1.694, 1.181, 0.380),
+            new THREE.Vector3(-1.662, -1.223, 0.417),
+            new THREE.Vector3(-1.662, 1.223, 0.417),
+        ];
+
+        const wheelRoot = new THREE.Group();
+        wheelRoot.name = 'generic-independent-wheels';
+        carModel.add(wheelRoot);
+
+        const spinWheels = [];
+        const steerPivots = [];
+        const suspensionAxis = new THREE.Vector3(0, 0, 1); // Audi source geometry is Z-up before model normalization
+        const steerAxis = new THREE.Vector3(0, 0, 1);
+        const spinAxis = new THREE.Vector3(0, 1, 0);
+
+        centers.forEach((center, cornerIndex) => {
+            const suspensionPivot = new THREE.Group();
+            suspensionPivot.name = `audi_suspension_${cornerIndex}`;
+            suspensionPivot.position.copy(center);
+            suspensionPivot.userData.restPosition = center.clone();
+            suspensionPivot.userData.suspensionAxis = suspensionAxis;
+            suspensionPivot.userData.cornerIndex = cornerIndex;
+
+            const steerPivot = new THREE.Group();
+            steerPivot.userData.steerAxis = steerAxis;
+            suspensionPivot.add(steerPivot);
+
+            const spinGroup = new THREE.Group();
+            spinGroup.userData.spinAxis = spinAxis;
+            steerPivot.add(spinGroup);
+
+            wheelRoot.add(suspensionPivot);
+            spinWheels.push(spinGroup);
+            if (cornerIndex < 2) steerPivots.push(steerPivot);
+        });
+
+        candidateMeshes.forEach((sourceMesh) => {
+            const geometry = sourceMesh.geometry;
+            const position = geometry.attributes.position;
+            const index = geometry.index;
+            const triangleCount = index ? index.count : position.count;
+            const selectedIndices = centers.map(() => []);
+            const leftoverIndices = [];
+            const lowerName = (sourceMesh.name || '').toLowerCase();
+            const maxDistance = lowerName.includes('metal_red') ? 0.75 : 0.90;
+
+            for (let i = 0; i < triangleCount; i += 3) {
+                const ia = index ? index.getX(i) : i;
+                const ib = index ? index.getX(i + 1) : i + 1;
+                const ic = index ? index.getX(i + 2) : i + 2;
+                const x = (position.getX(ia) + position.getX(ib) + position.getX(ic)) / 3;
+                const y = (position.getY(ia) + position.getY(ib) + position.getY(ic)) / 3;
+                const z = (position.getZ(ia) + position.getZ(ib) + position.getZ(ic)) / 3;
+
+                let bestIndex = -1;
+                let bestDistance = Infinity;
+                centers.forEach((center, centerIndex) => {
+                    const distance = Math.hypot(x - center.x, y - center.y);
+                    if (distance < bestDistance) {
+                        bestDistance = distance;
+                        bestIndex = centerIndex;
                     }
                 });
 
-                const wheelFL = carModel.getObjectByName('wheel_fl');
-                const wheelFR = carModel.getObjectByName('wheel_fr');
-                const wheelRL = carModel.getObjectByName('wheel_rl');
-                const wheelRR = carModel.getObjectByName('wheel_rr');
-                if (wheelFL && wheelFR && wheelRL && wheelRR) {
-                    this.gltfSpinWheels = [];
-                    this.gltfSteerPivots = [];
+                const target = (bestIndex >= 0 && bestDistance <= maxDistance && Math.abs(z - centers[bestIndex].z) <= 0.75)
+                    ? selectedIndices[bestIndex]
+                    : leftoverIndices;
+                target.push(ia, ib, ic);
+            }
 
-                    const rawWheels = [
-                        { mesh: wheelFL, isFront: true },
-                        { mesh: wheelFR, isFront: true },
-                        { mesh: wheelRL, isFront: false },
-                        { mesh: wheelRR, isFront: false },
-                    ];
+            selectedIndices.forEach((indices, cornerIndex) => {
+                if (indices.length === 0) return;
+                const wheelGeometry = this._buildTriangleGeometry(geometry, indices);
+                const center = centers[cornerIndex];
+                wheelGeometry.translate(-center.x, -center.y, -center.z);
 
-                    rawWheels.forEach(({ mesh, isFront }) => {
-                        const parent = mesh.parent;
-                        const steerPivot = new THREE.Group();
-                        steerPivot.position.copy(mesh.position);
-                        parent.add(steerPivot);
-
-                        const spinGroup = new THREE.Group();
-                        steerPivot.add(spinGroup);
-
-                        mesh.position.set(0, 0, 0);
-                        spinGroup.add(mesh);
-
-                        this.gltfSpinWheels.push(spinGroup);
-                        if (isFront) {
-                            this.gltfSteerPivots.push(steerPivot);
-                        }
-                    });
-                }
-
-                // Apply glossy Ferrari Red body paint with crisp specular highlights and clearcoat
-                const bodyMesh = carModel.getObjectByName('body');
-                if (bodyMesh) {
-                    this.bodyMaterial = new THREE.MeshPhysicalMaterial({
-                        color: 0xd11a2a,
-                        metalness: 0.35,
-                        roughness: 0.16,
-                        clearcoat: 1.0,
-                        clearcoatRoughness: 0.06,
-                        reflectivity: 0.9,
-                    });
-                    bodyMesh.material = this.bodyMaterial;
-                }
-
-                // Hide procedural car body fallback
-                if (this.proceduralMesh) {
-                    this.proceduralMesh.visible = false;
-                }
-                this.mesh.add(carModel);
-                this.isGltfLoaded = true;
-            }, undefined, (err) => {
-                console.warn('Ferrari 3D GLTF load warning (using procedural model fallback):', err);
+                const wheelPart = new THREE.Mesh(wheelGeometry, sourceMesh.material);
+                wheelPart.name = `${sourceMesh.name || 'wheel_part'}_${cornerIndex}`;
+                wheelPart.castShadow = false;
+                wheelPart.receiveShadow = true;
+                spinWheels[cornerIndex].add(wheelPart);
             });
-        } catch (e) {
-            console.warn('GLTFLoader error:', e);
+
+            sourceMesh.visible = false;
+
+            if (leftoverIndices.length > 0) {
+                const leftoverGeometry = this._buildTriangleGeometry(geometry, leftoverIndices);
+                const leftoverMesh = new THREE.Mesh(leftoverGeometry, sourceMesh.material);
+                leftoverMesh.name = `${sourceMesh.name || 'wheel_part'}_body_remainder`;
+                leftoverMesh.position.copy(sourceMesh.position);
+                leftoverMesh.rotation.copy(sourceMesh.rotation);
+                leftoverMesh.scale.copy(sourceMesh.scale);
+                leftoverMesh.castShadow = false;
+                leftoverMesh.receiveShadow = true;
+                (sourceMesh.parent || carModel).add(leftoverMesh);
+            }
+        });
+
+        return { spinWheels, steerPivots };
+    }
+
+    /** Generic model setup (Audi, etc): normalize by bounding box, disable shadow casting */
+    _setupGenericModel(carModel, definition) {
+        const wheelData = this._setupGenericWheelPivots(carModel, definition);
+        carModel.userData.spinWheels = wheelData.spinWheels;
+        carModel.userData.steerPivots = wheelData.steerPivots;
+
+        // Normalize to ~4.9m longest axis
+        const bounds = new THREE.Box3().setFromObject(carModel);
+        const size = bounds.getSize(new THREE.Vector3());
+        const scale = 4.9 / Math.max(size.x, size.z);
+        carModel.scale.multiplyScalar(scale);
+        carModel.rotation.y = Math.PI / 2;
+        carModel.updateMatrixWorld(true);
+
+        // Center and ground the model
+        const aligned = new THREE.Box3().setFromObject(carModel);
+        const center = aligned.getCenter(new THREE.Vector3());
+        carModel.position.x -= center.x;
+        carModel.position.z -= center.z;
+        carModel.position.y -= aligned.min.y;
+
+        // Disable per-mesh shadow casting to contain high-poly asset performance
+        carModel.traverse((node) => {
+            if (node.isMesh) {
+                node.castShadow = false;
+                node.receiveShadow = true;
+            }
+        });
+    }
+
+    /**
+     * Activate a car definition: load its model, apply physics, toggle visibility.
+     * Returns a promise that resolves when the new car is visible.
+     */
+    async _activateCar(definition) {
+        // Apply physics profile immediately
+        this.mass = definition.mass;
+        this.wheelbase = definition.wheelbase;
+        this.wheelRadius = definition.wheelRadius;
+        this.maxSpeed = definition.topSpeedKmh / 3.6;
+        this.driveTuning = definition;
+        this.activeCarId = definition.id;
+        this.activeCarIndex = CAR_DEFINITIONS.indexOf(definition);
+
+        // Load the model if not cached
+        const model = await this._loadCarModel(definition);
+
+        // Hide all cached car models
+        for (const [, cachedModel] of this._carModelCache) {
+            cachedModel.visible = false;
+        }
+
+        if (model) {
+            model.visible = true;
+            if (this.proceduralMesh) this.proceduralMesh.visible = false;
+
+            this.gltfSpinWheels = model.userData.spinWheels || [];
+            this.gltfSteerPivots = model.userData.steerPivots || [];
+            this.isGltfLoaded = this.gltfSpinWheels.length > 0;
+        } else {
+            // Fallback to procedural model
+            if (this.proceduralMesh) this.proceduralMesh.visible = true;
+            this.gltfSpinWheels = [];
+            this.gltfSteerPivots = [];
+            this.isGltfLoaded = false;
+        }
+        this._resetWheelAssemblies();
+    }
+
+    /** Cycle to the next car in CAR_DEFINITIONS. Returns the new car id. */
+    async selectNextCar() {
+        const nextIndex = (this.activeCarIndex + 1) % CAR_DEFINITIONS.length;
+        await this._activateCar(CAR_DEFINITIONS[nextIndex]);
+        return this.activeCarId;
+    }
+
+    /** Get the active car's full definition record. */
+    getActiveCar() {
+        return CAR_DEFINITIONS.find((car) => car.id === this.activeCarId) || CAR_DEFINITIONS[0];
+    }
+
+    /** Zero all motion state for studio positioning. */
+    resetMotion() {
+        this.vLong = 0;
+        this.vLat = 0;
+        this.yawRate = 0;
+        this.aLong = 0;
+        this.aLat = 0;
+        this.pitchAngle = 0;
+        this.pitchVel = 0;
+        this.rollAngle = 0;
+        this.rollVel = 0;
+        this.heaveDisplacement = 0;
+        this.heaveVel = 0;
+        this.speed = 0;
+
+        this.wheelStates.forEach((corner) => {
+            corner.compression = 0;
+            corner.velocity = 0;
+            corner.force = 0;
+            corner.travel = 0;
+        });
+        this.visualBody.rotation.x = 0;
+        this.visualBody.rotation.z = 0;
+        this.visualBody.position.y = 0;
+
+        this._resetWheelAssemblies();
+    }
+
+    _resetWheelAssemblies() {
+        if (this.gltfSpinWheels.length > 0) {
+            this.gltfSpinWheels.forEach((spinGroup) => {
+                const assembly = spinGroup.parent ? spinGroup.parent.parent : null;
+                if (assembly && assembly.userData.restPosition) {
+                    const axis = assembly.userData.suspensionAxis || this.defaultSuspensionAxis;
+                    assembly.position.copy(assembly.userData.restPosition).addScaledVector(axis, 0);
+                }
+            });
+        } else if (this.wheelAssemblyGroups) {
+            this.wheelAssemblyGroups.forEach((assembly) => {
+                const entry = assembly.userData.dissectEntry;
+                if (entry) this._applyWheelDisplacement(assembly, entry, 0);
+            });
+        }
+    }
+
+    /** Gentle visual-only update for studio showroom (no physics, no road boundary). */
+    updateShowroom(dt) {
+        this.mesh.rotation.y = this.heading;
+        this.visualBody.rotation.x = 0;
+        this.visualBody.rotation.z = 0;
+        this.visualBody.position.y = 0;
+    }
+
+    _applyWheelDisplacement(assembly, entry, displacement) {
+        assembly.position.x = THREE.MathUtils.lerp(entry.homePos.x, entry.explodedPos.x, this.dissectionFactor);
+        assembly.position.y = THREE.MathUtils.lerp(entry.homePos.y, entry.explodedPos.y, this.dissectionFactor) + displacement;
+        assembly.position.z = THREE.MathUtils.lerp(entry.homePos.z, entry.explodedPos.z, this.dissectionFactor);
+    }
+
+    _updateSuspension(dt, input) {
+        const aLong = this.acceleratingSystem ? this.acceleratingSystem.aLong : 0;
+        const aLat = this.turningSystem ? this.turningSystem.aLat : 0;
+        const speedAbs = Math.abs(this.vLong);
+        const speedRatio = THREE.MathUtils.clamp(speedAbs / 38.0, 0, 1);
+        const distance = -this.mesh.position.z;
+        const microBump = (Math.sin(distance * 1.17) * 0.45 + Math.sin(distance * 2.09) * 0.22)
+            * 0.006 * speedRatio;
+
+        this.wheelStates.forEach((corner, index) => {
+            const frontLoad = aLong * 0.010;
+            const sideLoad = aLat * 0.0065;
+            const roadInput = microBump * (0.45 + index * 0.18);
+            const targetCompression = THREE.MathUtils.clamp(
+                (corner.isFront ? -frontLoad : frontLoad)
+                + (corner.x < 0 ? -sideLoad : sideLoad)
+                + roadInput,
+                -this.suspensionTravelMax,
+                this.suspensionTravelMax,
+            );
+
+            corner.velocity += ((targetCompression - corner.compression) * this.suspensionSpring
+                - corner.velocity * this.suspensionDamper) * dt;
+            corner.compression = THREE.MathUtils.clamp(
+                corner.compression + corner.velocity * dt,
+                -this.suspensionTravelMax,
+                this.suspensionTravelMax,
+            );
+            corner.force = corner.compression * this.suspensionSpring;
+            corner.travel = corner.compression;
+        });
+
+        const frontLift = -(this.wheelStates[0].travel + this.wheelStates[1].travel) * 0.5;
+        const rearLift = -(this.wheelStates[2].travel + this.wheelStates[3].travel) * 0.5;
+        const leftLift = -(this.wheelStates[0].travel + this.wheelStates[2].travel) * 0.5;
+        const rightLift = -(this.wheelStates[1].travel + this.wheelStates[3].travel) * 0.5;
+
+        const brakeDiveBonus = (input.backward && this.vLong > 0.5) ? 0.018 : 0;
+        const squatBonus = (this.acceleratingSystem.aLong > 5) ? 0.006 : 0;
+        const targetPitch = THREE.MathUtils.clamp(
+            Math.atan2(frontLift - rearLift, this.wheelbase) * 1.35 - brakeDiveBonus + squatBonus,
+            -0.075,
+            0.075,
+        );
+        const targetRoll = THREE.MathUtils.clamp(
+            Math.atan2(rightLift - leftLift, this.trackWidth) * 1.18 - (aLat / 9.81) * 0.010,
+            -0.085,
+            0.085,
+        );
+        const targetHeave = THREE.MathUtils.clamp(
+            (frontLift + rearLift) * 0.5 - (Math.abs(aLong) / 9.81) * 0.006,
+            -0.055,
+            0.055,
+        );
+
+        this.pitchVel += (targetPitch - this.pitchAngle) * 7.2 * dt - this.pitchVel * 6.0 * dt;
+        this.pitchAngle += this.pitchVel * dt;
+        this.rollVel += (targetRoll - this.rollAngle) * 7.2 * dt - this.rollVel * 6.0 * dt;
+        this.rollAngle += this.rollVel * dt;
+        this.heaveVel += (targetHeave - this.heaveDisplacement) * 8.5 * dt - this.heaveVel * 6.8 * dt;
+        this.heaveDisplacement += this.heaveVel * dt;
+
+        this.mesh.rotation.y = this.heading;
+        this.visualBody.rotation.x = this.pitchAngle;
+        this.visualBody.rotation.z = this.rollAngle;
+        this.visualBody.position.y = Math.max(-0.05, this.heaveDisplacement);
+
+        if (this.isGltfLoaded && this.gltfSpinWheels.length > 0) {
+            this.gltfSpinWheels.forEach((spinGroup, index) => {
+                const assembly = spinGroup.parent ? spinGroup.parent.parent : null;
+                const state = this.wheelStates[index];
+                if (assembly && state && assembly.userData.restPosition) {
+                    const axis = assembly.userData.suspensionAxis || this.defaultSuspensionAxis;
+                    assembly.position.copy(assembly.userData.restPosition).addScaledVector(axis, state.travel);
+                }
+            });
+        } else if (this.wheelAssemblyGroups.length > 0) {
+            this.wheelAssemblyGroups.forEach((assembly, index) => {
+                const state = this.wheelStates[index];
+                const entry = assembly.userData.dissectEntry;
+                if (state && entry) {
+                    this._applyWheelDisplacement(assembly, entry, state.travel);
+                }
+            });
         }
     }
 
@@ -905,28 +1418,8 @@ export class Vehicle {
         this.mesh.position.x += vxWorld * dt;
         this.mesh.position.z += vzWorld * dt;
 
-        // 3. Chassis Suspension Physics (Pitch, Roll, Heave) with Lag
-        // Stronger pitch/roll multipliers + brake dive & acceleration squat bonuses
-        const brakeDiveBonus = (input.backward && this.vLong > 0.5) ? 0.02 : 0;
-        const squatBonus = (this.acceleratingSystem.aLong > 5) ? 0.006 : 0;
-        const rawTargetPitch = -(this.acceleratingSystem.aLong / 9.81) * 0.032 + brakeDiveBonus - squatBonus;
-        const targetPitch = THREE.MathUtils.clamp(rawTargetPitch, -0.035, 0.045);
-        const targetRoll = (this.turningSystem.aLat / 9.81) * 0.090;
-        const roadBumpNoise = Math.sin(performance.now() * 0.018) * 0.006 * Math.min(Math.abs(this.vLong) / 25, 1.0);
-        const targetHeave = -(Math.abs(this.acceleratingSystem.aLong) / 9.81) * 0.012 + roadBumpNoise;
-
-        // Suspension lag: slower spring-damper response (~200-350ms instead of instant)
-        this.pitchVel += (targetPitch - this.pitchAngle) * 8.0 * dt - this.pitchVel * 5.6 * dt;
-        this.pitchAngle += this.pitchVel * dt;
-        this.rollVel += (targetRoll - this.rollAngle) * 8.0 * dt - this.rollVel * 5.6 * dt;
-        this.rollAngle += this.rollVel * dt;
-        this.heaveVel += (targetHeave - this.heaveDisplacement) * 10.0 * dt - this.heaveVel * 6.3 * dt;
-        this.heaveDisplacement += this.heaveVel * dt;
-
-        this.mesh.rotation.y = this.heading;
-        this.mesh.rotation.z = this.rollAngle;
-        this.mesh.rotation.x = this.pitchAngle;
-        this.mesh.position.y = Math.max(-0.05, this.heaveDisplacement);
+        // 3. Four-Corner Arcade Suspension (Load Transfer -> Wheel Travel -> Body Motion)
+        this._updateSuspension(dt, input);
 
         if (this.contactShadow) {
             const toLight = this._getShadowLightVector();
@@ -949,17 +1442,21 @@ export class Vehicle {
         // 4. Wheel Animations & Steering Angle (Separated Transformations)
         const spin = -this.vLong * dt * 3.2;
 
-        // Continuous wheel spin around axle (Pitch rotation.x on spinGroup)
+        // Continuous wheel spin around each model's axle axis
         if (this.isGltfLoaded && this.gltfSpinWheels && this.gltfSpinWheels.length > 0) {
-            this.gltfSpinWheels.forEach(w => { w.rotation.x += spin; });
+            this.gltfSpinWheels.forEach((wheel) => {
+                wheel.rotateOnAxis(wheel.userData.spinAxis || this.defaultWheelSpinAxis, spin);
+            });
         } else if (this.wheelSpinGroups) {
             this.wheelSpinGroups.forEach(w => { w.rotation.x += spin; });
         }
 
-        // Smooth visual steering rotation around Kingpin pivot (Yaw rotation.y on steerPivot)
+        // Smooth visual steering rotation around each model's vertical axis
         const visualSteer = this.turningSystem.currentSteer * 0.85;
         if (this.isGltfLoaded && this.gltfSteerPivots && this.gltfSteerPivots.length > 0) {
-            this.gltfSteerPivots.forEach(p => { p.rotation.y = visualSteer; });
+            this.gltfSteerPivots.forEach((pivot) => {
+                pivot.quaternion.setFromAxisAngle(pivot.userData.steerAxis || this.defaultSteerAxis, visualSteer);
+            });
         } else if (this.frontSteerPivots) {
             this.frontSteerPivots.forEach(p => { p.rotation.y = visualSteer; });
         }
@@ -973,7 +1470,7 @@ export class Vehicle {
 
         // 6. Playable boundary constraint relative to dynamic road width
         const roadPt = getRoadPoint(this.mesh.position.z);
-        const currentRoadWidth = getRoadWidth(this.mesh.position.z);
+        const currentRoadWidth = getRoadWidth(this.mesh.position.z, this.driveTuning?.route);
         const maxOffset = (currentRoadWidth / 2) - 0.4;
 
         const offsetFromRoad = this.mesh.position.x - roadPt.x;

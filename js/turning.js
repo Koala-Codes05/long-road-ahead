@@ -74,7 +74,8 @@ export class TurningSystem {
         const effectiveWeatherGrip = weatherGripFactor * (1.0 - aquaPlanFactor);
 
         const lowSpeedMechanicalGrip = THREE.MathUtils.lerp(0.45, 0.0, THREE.MathUtils.smoothstep(kmh, 0, 70));
-        const maxLatG = (1.04 + lowSpeedMechanicalGrip + aeroGripBonus) * frontGripFactor * effectiveWeatherGrip;
+        const profileGrip = this.v.driveTuning?.gripMultiplier ?? 1;
+        const maxLatG = (1.04 + lowSpeedMechanicalGrip + aeroGripBonus) * frontGripFactor * effectiveWeatherGrip * profileGrip;
         const maxLatAccel = maxLatG * 9.81;
 
         // Calculate desired lateral acceleration

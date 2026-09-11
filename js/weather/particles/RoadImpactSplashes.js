@@ -22,30 +22,12 @@ export class RoadImpactSplashes {
     }
 
     _createSplashTexture() {
-        const canvas = document.createElement('canvas');
-        canvas.width = 64; canvas.height = 64;
-        const ctx = canvas.getContext('2d');
-
-        // Center bright splash point
-        const gradCenter = ctx.createRadialGradient(32, 32, 0, 32, 32, 10);
-        gradCenter.addColorStop(0.0, 'rgba(255, 255, 255, 1.0)');
-        gradCenter.addColorStop(0.4, 'rgba(210, 235, 255, 0.8)');
-        gradCenter.addColorStop(1.0, 'rgba(160, 210, 255, 0.0)');
-        ctx.fillStyle = gradCenter;
-        ctx.fillRect(0, 0, 64, 64);
-
-        // Water Ripple Ring
-        ctx.beginPath();
-        ctx.arc(32, 32, 22, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(180, 225, 255, 0.65)';
-        ctx.lineWidth = 4;
-        ctx.stroke();
-
-        const tex = new THREE.CanvasTexture(canvas);
+        const tex = new THREE.TextureLoader().load('assets/VFX/brackeys_vfx_bundle/particles/alpha/circle_01_a.png');
         tex.minFilter = THREE.LinearFilter;
         tex.magFilter = THREE.LinearFilter;
         return tex;
     }
+
 
     _createImpactInstancedMesh(count) {
         const quadGeo = new THREE.PlaneGeometry(1, 1);

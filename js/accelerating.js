@@ -30,6 +30,10 @@ export class AcceleratingSystem {
         // Dynamics telemetry output
         this.aLong = 0;
         this.driveForce = 0;
+        this.isThrottle = false;
+        this.isBraking = false;
+        this.throttleInput = 0;
+        this.brakeInput = 0;
     }
 
     _getEngineTorque(rpm) {
@@ -77,12 +81,20 @@ export class AcceleratingSystem {
 
         // 4. Progressive Throttle Application (simulates turbo lag at high RPM)
         const throttleTarget = input.forward ? 1.0 : 0.0;
-        const throttleRate = 1.0 - Math.exp(-dt * 6.0);
+        const throttleRate = 1.0 - Math.exp(-dt * 8.5);
         this.currentThrottle = THREE.MathUtils.lerp(this.currentThrottle, throttleTarget, throttleRate);
+        this.throttleInput = throttleTarget;
+        this.brakeInput = input.backward ? 1.0 : 0.0;
+        this.isThrottle = input.forward;
+        this.isBraking = input.backward && this.v.vLong > 0.5;
 
         // 5. Raw Engine Power & Drive Force
         let rawTorque = this._getEngineTorque(this.engineRpm) * nitroMult;
         if (this.shiftTimer > 0) rawTorque *= 0.25;
+
+        // Apply car-specific torque profile
+        const tuning = this.v.driveTuning;
+        rawTorque *= tuning?.torqueMultiplier ?? 1;
 
         const effectiveRadius = Math.max(0.32, this.v.wheelRadius);
         this.driveForce = 0;
@@ -91,10 +103,13 @@ export class AcceleratingSystem {
         // Speed ratio for progressive brake feel
         const speedRatio = Math.min(Math.abs(this.v.vLong) / 30.0, 1.0);
 
+        // Car-specific brake multiplier
+        const brakeMult = tuning?.brakeMultiplier ?? 1;
+
         if (input.forward) {
             if (this.v.vLong < -0.5) {
                 // Braking while rolling in reverse
-                this.driveForce = this.brakeForce * 800 * sensMult * weatherGripFactor;
+                this.driveForce = this.brakeForce * 800 * sensMult * weatherGripFactor * brakeMult;
             } else {
                 // Launch control: limit initial acceleration from standstill to prevent wheelspin jump
                 const launchFactor = Math.min(1.0, Math.abs(this.v.vLong) / 5.0 + 0.3);
@@ -104,7 +119,7 @@ export class AcceleratingSystem {
         } else if (input.backward) {
             if (this.v.vLong > 0.5) {
                 // Progressive brake feel: less grabby at low speed, stronger at high speed
-                this.driveForce = -this.brakeForce * 900 * sensMult * (0.4 + 0.6 * speedRatio) * weatherGripFactor;
+                this.driveForce = -this.brakeForce * 900 * sensMult * (0.4 + 0.6 * speedRatio) * weatherGripFactor * brakeMult;
             } else {
                 // Reverse acceleration drive power
                 this.isReversing = true;
@@ -127,6 +142,7 @@ export class AcceleratingSystem {
         // 8. Longitudinal Acceleration Integration
         this.aLong = netLongForce / this.v.mass;
         this.v.vLong += this.aLong * dt;
+        this.v.aLong = this.aLong;
 
         // 9. Real Mechanical Handbrake Locking & Brake Drag
         if (input.handbrake && Math.abs(this.v.vLong) > 0.3) {
@@ -142,8 +158,10 @@ export class AcceleratingSystem {
             this.v.vLong = 0;
         }
 
-        // Top speed limits
-        const cap = this.isNitro ? (335 / 3.6) : (305 / 3.6);
+        // Top speed limits (car-specific)
+        const cap = this.isNitro
+            ? (tuning?.nitroTopSpeedKmh ?? 335) / 3.6
+            : (tuning?.topSpeedKmh ?? 305) / 3.6;
         this.v.vLong = Math.max(-this.reverseMaxSpeed, Math.min(this.v.vLong, cap));
         this.v.speed = this.v.vLong;
     }

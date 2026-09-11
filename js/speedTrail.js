@@ -173,10 +173,10 @@ export class SpeedTrailSystem {
         this.speedLinesMesh.position.copy(carPos);
         this.speedLinesMesh.rotation.y = carRotY;
 
-        const lineTargetOpacity = speedKmh > 60 ? Math.min(0.22, (speedKmh - 60) / 120.0) : 0.0;
+        const lineTargetOpacity = speedKmh > 35 ? Math.min(0.20, (speedKmh - 35) / 105.0) : 0.0;
         this.speedLineMat.opacity = THREE.MathUtils.lerp(this.speedLineMat.opacity, lineTargetOpacity, 0.15);
 
-        const isSpeedLinesVisible = speedKmh > 60 && this.speedLineMat.opacity > 0.005;
+        const isSpeedLinesVisible = speedKmh > 35 && this.speedLineMat.opacity > 0.005;
         this.speedLinesMesh.visible = isSpeedLinesVisible;
 
         if (isSpeedLinesVisible) {

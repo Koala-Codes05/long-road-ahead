@@ -125,3 +125,188 @@ export function createRippleNormalMap() {
     tex.repeat.set(8, 8);
     return tex;
 }
+
+/**
+ * Generates BaseColor and Normal maps for Cement / Concrete Road Slabs.
+ */
+export function createCementRoadTextures() {
+    const size = 512;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+
+    // Base light-gray concrete slab tone
+    ctx.fillStyle = '#8e9296';
+    ctx.fillRect(0, 0, size, size);
+
+    // Fine concrete speckled noise
+    const imgData = ctx.getImageData(0, 0, size, size);
+    for (let i = 0; i < imgData.data.length; i += 4) {
+        const noise = (Math.random() - 0.5) * 24;
+        imgData.data[i] = Math.min(255, Math.max(0, imgData.data[i] + noise));
+        imgData.data[i + 1] = Math.min(255, Math.max(0, imgData.data[i + 1] + noise));
+        imgData.data[i + 2] = Math.min(255, Math.max(0, imgData.data[i + 2] + noise));
+    }
+    ctx.putImageData(imgData, 0, 0);
+
+    // Grid of concrete slab expansion joints (grooves)
+    ctx.strokeStyle = '#3a3d40';
+    ctx.lineWidth = 6;
+
+    // Longitudinal & Transverse seams
+    for (let x = 0; x <= size; x += size / 2) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, size); ctx.stroke();
+    }
+    for (let y = 0; y <= size; y += size / 4) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(size, y); ctx.stroke();
+    }
+
+    // Concrete seam sealant line highlights
+    ctx.strokeStyle = '#222528';
+    ctx.lineWidth = 2;
+    for (let x = 0; x <= size; x += size / 2) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, size); ctx.stroke();
+    }
+    for (let y = 0; y <= size; y += size / 4) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(size, y); ctx.stroke();
+    }
+
+    const baseMap = new THREE.CanvasTexture(canvas);
+    baseMap.wrapS = THREE.RepeatWrapping;
+    baseMap.wrapT = THREE.RepeatWrapping;
+    baseMap.colorSpace = THREE.SRGBColorSpace;
+
+    return { baseMap };
+}
+
+/**
+ * Generates BaseColor, Normal, and Puddle/Pothole noise textures for worn asphalt with potholes.
+ */
+export function createPotholeAsphaltTextures() {
+    const size = 512;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+
+    // Base dark weathered asphalt color
+    ctx.fillStyle = '#26292d';
+    ctx.fillRect(0, 0, size, size);
+
+    // Asphalt aggregate grain noise
+    const imgData = ctx.getImageData(0, 0, size, size);
+    for (let i = 0; i < imgData.data.length; i += 4) {
+        const noise = (Math.random() - 0.5) * 32;
+        imgData.data[i] = Math.min(255, Math.max(0, imgData.data[i] + noise));
+        imgData.data[i + 1] = Math.min(255, Math.max(0, imgData.data[i + 1] + noise));
+        imgData.data[i + 2] = Math.min(255, Math.max(0, imgData.data[i + 2] + noise));
+    }
+    ctx.putImageData(imgData, 0, 0);
+
+    // Draw irregular Potholes & Cracks
+    const potholes = [
+        { x: 140, y: 180, rx: 55, ry: 40, angle: 0.3 },
+        { x: 380, y: 320, rx: 70, ry: 50, angle: -0.4 },
+        { x: 260, y: 410, rx: 45, ry: 35, angle: 0.1 },
+    ];
+
+    potholes.forEach(p => {
+        // Jagged outer broken asphalt rim (dark exposed aggregate & water ring)
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.angle);
+
+        ctx.fillStyle = '#111315'; // Dark recessed pit bottom
+        ctx.beginPath();
+        for (let a = 0; a < Math.PI * 2; a += 0.2) {
+            const radX = p.rx + (Math.random() - 0.5) * 16;
+            const radY = p.ry + (Math.random() - 0.5) * 14;
+            const px = Math.cos(a) * radX;
+            const py = Math.sin(a) * radY;
+            if (a === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.fill();
+
+        // Inner water puddle reflection zone inside pothole
+        ctx.fillStyle = '#080a0c';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, p.rx * 0.7, p.ry * 0.7, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Cracks branching out from pothole
+        ctx.strokeStyle = '#181b1e';
+        ctx.lineWidth = 3;
+        for (let c = 0; c < 4; c++) {
+            let cx = Math.cos((c / 4) * Math.PI * 2) * p.rx;
+            let cy = Math.sin((c / 4) * Math.PI * 2) * p.ry;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            for (let step = 0; step < 4; step++) {
+                cx += (Math.random() - 0.5) * 30;
+                cy += (Math.random() - 0.5) * 30;
+                ctx.lineTo(cx, cy);
+            }
+            ctx.stroke();
+        }
+
+        ctx.restore();
+    });
+
+    const baseMap = new THREE.CanvasTexture(canvas);
+    baseMap.wrapS = THREE.RepeatWrapping;
+    baseMap.wrapT = THREE.RepeatWrapping;
+    baseMap.colorSpace = THREE.SRGBColorSpace;
+
+    return { baseMap };
+}
+
+/**
+ * Generates tile pattern BaseColor map for concrete sidewalks and curbs.
+ */
+export function createSidewalkTileTexture() {
+    const size = 256;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+
+    // Concrete pavement base
+    ctx.fillStyle = '#9aa0a6';
+    ctx.fillRect(0, 0, size, size);
+
+    // Speckled concrete texture
+    const imgData = ctx.getImageData(0, 0, size, size);
+    for (let i = 0; i < imgData.data.length; i += 4) {
+        const noise = (Math.random() - 0.5) * 20;
+        imgData.data[i] = Math.min(255, Math.max(0, imgData.data[i] + noise));
+        imgData.data[i + 1] = Math.min(255, Math.max(0, imgData.data[i + 1] + noise));
+        imgData.data[i + 2] = Math.min(255, Math.max(0, imgData.data[i + 2] + noise));
+    }
+    ctx.putImageData(imgData, 0, 0);
+
+    // Sidewalk paving tile grooves (50cm x 50cm square tiles)
+    ctx.strokeStyle = '#52565c';
+    ctx.lineWidth = 4;
+    for (let x = 0; x <= size; x += size / 4) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, size); ctx.stroke();
+    }
+    for (let y = 0; y <= size; y += size / 4) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(size, y); ctx.stroke();
+    }
+
+    // Concrete curb edge bevel highlight on outer edge
+    ctx.fillStyle = '#b6bcc4';
+    ctx.fillRect(0, 0, size, 12);
+    ctx.fillStyle = '#484b50';
+    ctx.fillRect(0, 12, size, 4);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+}
+

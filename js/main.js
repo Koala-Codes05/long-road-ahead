@@ -18,6 +18,9 @@ import { createCinematicGradePass } from './cinematicGradeShader.js';
 import { createFisheyePass } from './fisheyeShader.js';
 import { Minimap } from './minimap.js';
 import { AudioEngine } from './audio.js';
+import { YouTubeMusicPlayer } from './audio/YouTubeMusicPlayer.js';
+import { ExhaustVFX } from './weather/particles/ExhaustVFX.js';
+
 
 /* =============================================
    SCENE (Moody Night Fog & Atmosphere)
@@ -753,14 +756,22 @@ scene.add(sky);
    ============================================= */
 const input = new InputManager();
 const vehicle = new Vehicle(scene);
+window.__VEHICLE__ = vehicle; // debug/test hook
 const world = new World(scene);
 world.init();
 
 // Volumetric Drifting Clouds System
 const cloudSystem = new CloudSystem(scene);
 
+// City buildings are generated per road chunk by the World's RoadsideGenerator
+// (see js/building/) — no separate building streaming manager required.
+
+// Dynamic Tailpipe Smoke, Backfire Flames & Tire Friction Spark Engine (Brackeys VFX)
+const exhaustVFX = new ExhaustVFX(scene);
+
 // Driveclub Glass Refraction Rain & Wet Surface System
 const weather = new WeatherSystem(scene, vehicle, world, composer);
+
 
 // High-Fidelity Glowing Motion Trail & Speed Ribbon System
 const speedTrailSystem = new SpeedTrailSystem(scene, vehicle.mesh);
@@ -771,12 +782,215 @@ const minimap = new Minimap();
 // Ferrari Engine Sound & Audio Controller
 const audioEngine = new AudioEngine();
 
-// Auto-unlock Web Audio on user gesture
+/* =============================================
+   STUDIO SHOWROOM & EXPERIENCE CONTROLS
+   ============================================= */
+import { GLTFLoader as StudioGLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+let studioMode = false;
+const studioGroup = new THREE.Group();
+studioGroup.name = 'studio-showroom';
+studioGroup.visible = false;
+scene.add(studioGroup);
+let studioLoad = null;
+
+function ensureStudio() {
+    if (studioLoad) return studioLoad;
+    studioLoad = new Promise((resolve, reject) => {
+        new StudioGLTFLoader().load(
+            'assets/Enviroment/Presets/studio_v1_for_car.glb',
+            (gltf) => {
+                const studioScene = gltf.scene;
+                studioScene.scale.setScalar(3.0);
+                studioScene.updateMatrixWorld(true);
+                const box = new THREE.Box3().setFromObject(studioScene);
+                studioScene.position.y -= box.min.y;
+                studioGroup.add(studioScene);
+                resolve();
+            },
+            undefined,
+            reject
+        );
+    });
+    return studioLoad;
+}
+
+const driveSnapshot = { position: new THREE.Vector3(), heading: 0 };
+
+// HUD element refs for experience badge and studio overlay
+const elExperienceRoute = document.getElementById('experience-route');
+const elExperienceCar = document.getElementById('experience-car');
+const elStudioOverlay = document.getElementById('studio-overlay');
+const elStudioCarName = document.getElementById('studio-car-name');
+
+function syncExperienceHUD() {
+    const car = vehicle.getActiveCar();
+    if (elExperienceCar) elExperienceCar.textContent = car.label;
+    if (elExperienceRoute) elExperienceRoute.textContent = car.route === 'city' ? 'CITY' : 'HIGHWAY';
+    if (elStudioCarName) elStudioCarName.textContent = car.label;
+}
+
+async function setStudioMode(nextStudioMode) {
+    if (nextStudioMode) {
+        // Save drive state
+        driveSnapshot.position.copy(vehicle.mesh.position);
+        driveSnapshot.heading = vehicle.heading;
+
+        await ensureStudio();
+
+        world.setVisible(false);
+        studioGroup.visible = true;
+        vehicle.resetMotion();
+        vehicle.mesh.position.set(0, 0, 0);
+        vehicle.heading = 0;
+        vehicle.mesh.rotation.y = 0;
+
+        if (elStudioOverlay) {
+            elStudioOverlay.classList.add('is-visible');
+            elStudioOverlay.setAttribute('aria-hidden', 'false');
+        }
+    } else {
+        // Restore drive state
+        studioGroup.visible = false;
+        world.setVisible(true);
+        vehicle.mesh.position.copy(driveSnapshot.position);
+        vehicle.heading = driveSnapshot.heading;
+        vehicle.mesh.rotation.y = driveSnapshot.heading;
+
+        if (elStudioOverlay) {
+            elStudioOverlay.classList.remove('is-visible');
+            elStudioOverlay.setAttribute('aria-hidden', 'true');
+        }
+    }
+    studioMode = nextStudioMode;
+    syncExperienceHUD();
+}
+
+async function switchExperienceCar() {
+    await vehicle.selectNextCar();
+    const car = vehicle.getActiveCar();
+
+    // Only change world route when driving
+    if (!studioMode) {
+        await world.setRoute(car.route);
+    }
+
+    syncExperienceHUD();
+}
+
+async function switchExperienceRoute() {
+    const currentRoute = world.route;
+    const nextRoute = currentRoute === 'highway' ? 'city' : 'highway';
+    const car = vehicle.getActiveCar();
+    car.route = nextRoute;
+    if (!studioMode) {
+        await world.setRoute(nextRoute);
+    }
+    syncExperienceHUD();
+}
+
+function updateStudioCamera(dt) {
+    const orbit = performance.now() * 0.00012;
+    camera.position.set(Math.sin(orbit) * 7.2, 2.6, Math.cos(orbit) * 7.2);
+    camera.lookAt(vehicle.mesh.position.x, 0.85, vehicle.mesh.position.z);
+    camera.fov = THREE.MathUtils.lerp(camera.fov, 48, 1 - Math.exp(-dt * 6));
+    camera.updateProjectionMatrix();
+}
+
+// Initialize HUD with default car
+syncExperienceHUD();
+
+// YouTube Background Music Player Engine & Widget Wiring
+const youtubePlayer = new YouTubeMusicPlayer({
+    onTrackChange: (title) => {
+        const titleEl = document.getElementById('yt-track-title');
+        if (titleEl) titleEl.textContent = title.toUpperCase();
+    },
+    onStateChange: (isPlaying) => {
+        const playBtn = document.getElementById('yt-play-btn');
+        const soundwave = document.getElementById('soundwave-anim');
+        if (playBtn) playBtn.classList.toggle('play-active', isPlaying);
+        if (soundwave) soundwave.classList.toggle('paused', !isPlaying);
+    }
+});
+
+// Setup YouTube Cassette UI Widget Event Listeners
+const playBtn = document.getElementById('yt-play-btn');
+if (playBtn) playBtn.addEventListener('click', () => youtubePlayer.togglePlay());
+
+const prevBtn = document.getElementById('yt-prev-btn');
+if (prevBtn) prevBtn.addEventListener('click', () => youtubePlayer.prevTrack());
+
+const nextBtn = document.getElementById('yt-next-btn');
+if (nextBtn) nextBtn.addEventListener('click', () => youtubePlayer.nextTrack());
+
+const muteBtn = document.getElementById('yt-mute-btn');
+if (muteBtn) {
+    muteBtn.addEventListener('click', () => {
+        const muted = youtubePlayer.toggleMute();
+        muteBtn.textContent = muted ? '🔇' : '🔊';
+    });
+}
+
+const volSlider = document.getElementById('yt-vol-slider');
+if (volSlider) {
+    volSlider.addEventListener('input', (e) => {
+        youtubePlayer.setVolume(parseFloat(e.target.value));
+    });
+}
+
+const drawerToggle = document.getElementById('yt-drawer-toggle');
+const urlDrawer = document.getElementById('yt-url-drawer');
+if (drawerToggle && urlDrawer) {
+    drawerToggle.addEventListener('click', () => {
+        urlDrawer.classList.toggle('drawer-closed');
+        urlDrawer.classList.toggle('drawer-open');
+    });
+}
+
+const urlInput = document.getElementById('yt-url-input');
+const urlSubmit = document.getElementById('yt-url-submit');
+const loadCustomUrl = () => {
+    if (!urlInput || !urlInput.value.trim()) return;
+    const ok = youtubePlayer.loadFromUrlOrId(urlInput.value.trim());
+    if (ok) {
+        urlInput.value = '';
+        if (urlDrawer) {
+            urlDrawer.classList.add('drawer-closed');
+            urlDrawer.classList.remove('drawer-open');
+        }
+    }
+};
+
+if (urlSubmit) urlSubmit.addEventListener('click', loadCustomUrl);
+if (urlInput) {
+    urlInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') loadCustomUrl();
+    });
+}
+
+// Global Key Shortcut 'M' to toggle Music HUD Overlay
+window.addEventListener('keydown', (e) => {
+    // Ignore keypresses when typing inside input boxes
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+    if (e.key === 'm' || e.key === 'M') {
+        const musicWidget = document.getElementById('music-hud-widget');
+        if (musicWidget) {
+            const isHidden = musicWidget.style.display === 'none';
+            musicWidget.style.display = isHidden ? 'block' : 'none';
+        }
+    }
+});
+
+// Auto-unlock Web Audio & YouTube Radio on user gesture
 const unlockAudio = () => {
     if (audioEngine) audioEngine.init();
+    if (youtubePlayer && !youtubePlayer.isPlaying && youtubePlayer.isReady) {
+        youtubePlayer.play();
+    }
 };
 ['click', 'keydown', 'touchstart', 'pointerdown'].forEach(evt => {
-    window.addEventListener(evt, unlockAudio, { passive: true });
+    window.addEventListener(evt, unlockAudio, { once: true, passive: true });
 });
 
 const startBtn = document.getElementById('start-btn');
@@ -787,6 +1001,7 @@ if (startBtn) {
         if (loadingScreen) loadingScreen.style.display = 'none';
         if (hud) hud.style.display = 'block';
         unlockAudio();
+        if (youtubePlayer) youtubePlayer.play();
     });
 }
 
@@ -951,11 +1166,16 @@ const _shakeUp = new THREE.Vector3();
 const _shakeFwd = new THREE.Vector3();
 let cameraShakeTime = 0;
 let chaseCameraHeading = 0;
+let filteredAccel = 0;
 
 function updateCamera(dt) {
     const sr = Math.min(Math.abs(vehicle.speed) / vehicle.maxSpeed, 1);
     const mode = input.cameraMode !== undefined ? input.cameraMode : 0;
     const isNitro = !!(vehicle && vehicle.isNitro);
+    const powertrain = vehicle && vehicle.acceleratingSystem ? vehicle.acceleratingSystem : null;
+    const rawAccel = powertrain ? powertrain.aLong : 0;
+    const accelRate = Math.abs(rawAccel) > Math.abs(filteredAccel) ? 16.0 : 5.0;
+    filteredAccel += (rawAccel - filteredAccel) * (1 - Math.exp(-accelRate * dt));
 
     // When Nitro is used, force Third Person Chase view with 14mm ultra-wide fisheye perspective
     const effectiveMode = isNitro ? 0 : mode;
@@ -1006,8 +1226,9 @@ function updateCamera(dt) {
         const a = chaseCameraHeading + mouseOrbitYaw;
 
         // Smooth chase camera positioning
-        const speedCamDist = Math.max(4.5, dist - sr * 0.8);
+        const speedCamDist = Math.max(4.5, dist - sr * 1.25);
         const speedCamHeight = Math.max(1.1, height - sr * 0.2);
+        const launchLean = THREE.MathUtils.clamp(filteredAccel / 9.81, -0.35, 0.55);
 
         camIdeal.set(
             vehicle.mesh.position.x + Math.sin(a) * speedCamDist,
@@ -1022,7 +1243,7 @@ function updateCamera(dt) {
 
         camTarget.set(
             vehicle.mesh.position.x - Math.sin(vehicle.heading) * 1.6,
-            vehicle.mesh.position.y + 0.95,
+            vehicle.mesh.position.y + 0.95 + launchLean * 0.08,
             vehicle.mesh.position.z - Math.cos(vehicle.heading) * 1.6,
         );
         camLookAt.lerp(camTarget, s);
@@ -1052,6 +1273,11 @@ function updateCamera(dt) {
             shakeIntensity = Math.max(0.18, shakeIntensity + 0.12); // Strong wind turbulence
         }
 
+        const suspensionEnergy = vehicle && vehicle.wheelStates
+            ? vehicle.wheelStates.reduce((sum, corner) => sum + Math.abs(corner.velocity), 0) / 4
+            : 0;
+        shakeIntensity += Math.min(0.16, suspensionEnergy * 0.28);
+
         let posAmp = mode === 1 ? 0.012 : (mode === 2 ? 0.015 : 0.020);
         let rotAmp = mode === 1 ? 0.0012 : (mode === 2 ? 0.0010 : 0.0008);
 
@@ -1077,8 +1303,9 @@ function updateCamera(dt) {
         camera.rotation.x += pitchJitter;
     }
 
-    // Natural FOV Control (60° standard -> 68° max during speed & Nitro)
-    const targetFov = isNitro ? 68.0 : (60.0 + sr * 3.0);
+    // Natural FOV Control: accelerate visibly, then settle toward the tuned speed range
+    const fovSpeed = Math.pow(sr, 1.35);
+    const targetFov = isNitro ? 76.0 : (60.0 + fovSpeed * 15.0);
     const fovLerpRate = isNitro ? 10.0 : 8.0;
     camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, dt * fovLerpRate);
     camera.updateProjectionMatrix();
@@ -1099,11 +1326,15 @@ function updateCamera(dt) {
     // Dynamic High-Speed Radial Motion Blur
     if (motionBlurPass) {
         const nitroBlur = vehicle.isNitro ? 0.08 : 0.0;
-        const targetBlur = Math.pow(sr, 1.3) * 0.12 + nitroBlur;
+        const targetBlur = Math.pow(sr, 1.3) * 0.17 + nitroBlur;
         motionBlurPass.uniforms.uStrength.value = THREE.MathUtils.lerp(
             motionBlurPass.uniforms.uStrength.value,
             targetBlur,
             dt * 10.0
+        );
+        motionBlurPass.uniforms.uVelocity.value.set(
+            Math.sin(vehicle.heading) * filteredAccel * 0.012,
+            -Math.cos(vehicle.heading) * Math.abs(filteredAccel) * 0.006,
         );
     }
 
@@ -1411,17 +1642,51 @@ function animate() {
     const dt = Math.min(clock.getDelta(), 0.05);
 
     vehicle.camera = camera;
-    vehicle.update(dt, input, weather);
-    world.update(vehicle.mesh.position);
-    cloudSystem.update(dt, vehicle.mesh.position);
-    weather.update(dt, input.cameraMode, camera, renderer);
-    audioEngine.update(vehicle, weather.weatherType !== 3, weather.weatherType);
 
-    const isDrifting = vehicle.isDrifting || input.handbrake || (input.brake && Math.abs(input.steering) > 0.3);
-    speedTrailSystem.update(dt, vehicle.getSpeedKmh(), isDrifting, input.brake);
+    // Dispatch experience controls before vehicle update
+    if (input.consumeStudioToggleRequest()) void setStudioMode(!studioMode);
+    if (input.consumeVehicleSwitchRequest()) void switchExperienceCar();
+    if (input.consumeRouteSwitchRequest()) void switchExperienceRoute();
 
-    updateCamera(dt);
-    updateStreetlampLighting(dt);
+    if (!studioMode) {
+        // === DRIVING MODE ===
+        const prevGear = vehicle.getGear();
+        vehicle.update(dt, input, weather);
+        if (vehicle.getGear() !== prevGear) {
+            audioEngine.playGearShift();
+        }
+
+        if (input.hornPressed) {
+            audioEngine.playHorn();
+            input.hornPressed = false;
+        }
+
+        world.update(vehicle.mesh.position);
+        cloudSystem.update(dt, vehicle.mesh.position);
+        weather.update(dt, input.cameraMode, camera, renderer);
+        audioEngine.update(vehicle, weather.weatherType !== 3, weather.weatherType);
+
+        const isAccelerating = !!input.forward;
+        const isBraking = !!input.backward;
+        const steeringAmount = (input.left ? 1 : 0) - (input.right ? 1 : 0);
+
+        if (exhaustVFX && vehicle.mesh) {
+            exhaustVFX.emitExhaust(vehicle.mesh.position, vehicle.heading, vehicle.getSpeedKmh(), isAccelerating);
+            exhaustVFX.update(dt);
+        }
+
+        const isDrifting = vehicle.isDrifting || input.handbrake || (isBraking && Math.abs(steeringAmount) > 0.3);
+
+        speedTrailSystem.update(dt, vehicle.getSpeedKmh(), isDrifting, isBraking);
+
+        updateCamera(dt);
+        updateStreetlampLighting(dt);
+    } else {
+        // === STUDIO SHOWROOM MODE ===
+        vehicle.updateShowroom(dt);
+        updateStudioCamera(dt);
+    }
+
     updateHUD();
     if (composer) {
         composer.render();

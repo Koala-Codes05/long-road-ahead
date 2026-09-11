@@ -154,7 +154,8 @@ export class Minimap {
         ctx.restore();
 
         // Update Minimap HUD Badge Label
-        const curZone = getRoadZoneInfo(carPos.z);
+        const curRoute = vehicle.getActiveCar ? vehicle.getActiveCar()?.route : 'highway';
+        const curZone = getRoadZoneInfo(carPos.z, curRoute);
         if (this.elZoneIcon) this.elZoneIcon.textContent = curZone.icon;
         if (this.elZoneName) this.elZoneName.textContent = curZone.name;
     }

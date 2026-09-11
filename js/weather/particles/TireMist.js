@@ -18,20 +18,7 @@ const _rightVec = new THREE.Vector3();
 let _cachedSprayTex = null;
 function getWetSprayParticleTexture() {
     if (_cachedSprayTex) return _cachedSprayTex;
-    const canvas = document.createElement('canvas');
-    canvas.width = 32; canvas.height = 32;
-    const ctx = canvas.getContext('2d');
-
-    const grad = ctx.createRadialGradient(16, 16, 0, 16, 16, 15);
-    grad.addColorStop(0.0, 'rgba(240, 248, 255, 1.0)');
-    grad.addColorStop(0.35, 'rgba(200, 230, 255, 0.70)');
-    grad.addColorStop(0.70, 'rgba(160, 205, 250, 0.25)');
-    grad.addColorStop(1.0, 'rgba(120, 180, 240, 0.0)');
-
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 32, 32);
-
-    _cachedSprayTex = new THREE.CanvasTexture(canvas);
+    _cachedSprayTex = new THREE.TextureLoader().load('assets/VFX/brackeys_vfx_bundle/particles/alpha/smoke_01_a.png');
     _cachedSprayTex.minFilter = THREE.LinearFilter;
     _cachedSprayTex.magFilter = THREE.LinearFilter;
     return _cachedSprayTex;
@@ -40,24 +27,12 @@ function getWetSprayParticleTexture() {
 let _cachedSmokeTex = null;
 function getSmokeParticleTexture() {
     if (_cachedSmokeTex) return _cachedSmokeTex;
-    const canvas = document.createElement('canvas');
-    canvas.width = 64; canvas.height = 64;
-    const ctx = canvas.getContext('2d');
-
-    const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 30);
-    grad.addColorStop(0.0, 'rgba(240, 245, 252, 0.90)');
-    grad.addColorStop(0.3, 'rgba(215, 225, 238, 0.55)');
-    grad.addColorStop(0.65, 'rgba(180, 195, 215, 0.18)');
-    grad.addColorStop(1.0, 'rgba(120, 140, 165, 0.0)');
-
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 64, 64);
-
-    _cachedSmokeTex = new THREE.CanvasTexture(canvas);
+    _cachedSmokeTex = new THREE.TextureLoader().load('assets/VFX/brackeys_vfx_bundle/particles/alpha/smoke_07_strong_a.png');
     _cachedSmokeTex.minFilter = THREE.LinearFilter;
     _cachedSmokeTex.magFilter = THREE.LinearFilter;
     return _cachedSmokeTex;
 }
+
 
 let _cachedTrackTex = null;
 function getWetTireTrackTexture() {

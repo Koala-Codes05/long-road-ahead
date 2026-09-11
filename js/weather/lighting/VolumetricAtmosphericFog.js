@@ -43,17 +43,10 @@ export class VolumetricAtmosphericFog {
         geo.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
         geo.setAttribute('alpha', new THREE.BufferAttribute(alphas, 1));
 
-        // Soft volumetric smoke texture
-        const canvas = document.createElement('canvas');
-        canvas.width = 64; canvas.height = 64;
-        const ctx = canvas.getContext('2d');
-        const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 30);
-        grad.addColorStop(0.0, 'rgba(180, 205, 235, 0.45)');
-        grad.addColorStop(0.4, 'rgba(140, 175, 215, 0.20)');
-        grad.addColorStop(1.0, 'rgba(80, 110, 150, 0.0)');
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, 64, 64);
-        const mistTex = new THREE.CanvasTexture(canvas);
+        // High-Resolution PBR Noise Map (assets/Textures/fog_noise.png)
+        const mistTex = new THREE.TextureLoader().load('assets/Textures/fog_noise.png');
+        mistTex.minFilter = THREE.LinearFilter;
+        mistTex.magFilter = THREE.LinearFilter;
 
         const mat = new THREE.ShaderMaterial({
             uniforms: {
