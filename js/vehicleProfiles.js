@@ -18,7 +18,6 @@ export const VEHICLE_AUDIO_PROFILES = {
         accent: '#ff2a2a',
         samplePaths: [
             'assets/Sounds/ferrari/ferrari-458-italia-sound-effect-going-fast-360530.mp3',
-            'assets/ferrari.mp3',
         ],
         // Engine sample pitch RPM curve
         pitchBase: 0.82,
@@ -60,7 +59,6 @@ export const VEHICLE_AUDIO_PROFILES = {
         accent: '#37c8ff',
         samplePaths: [
             'assets/Sounds/ferrari/ferrari-458-italia-sound-effect-going-fast-360530.mp3',
-            'assets/ferrari.mp3',
         ],
         // Lower register: same sample pitched down = inline-6 baritone
         pitchBase: 0.62,
@@ -101,7 +99,6 @@ export const VEHICLE_AUDIO_PROFILES = {
         accent: '#ffd037',
         samplePaths: [
             'assets/Sounds/ferrari/ferrari-458-italia-sound-effect-going-fast-360530.mp3',
-            'assets/ferrari.mp3',
         ],
         // Highest register: V10 wail
         pitchBase: 1.00,

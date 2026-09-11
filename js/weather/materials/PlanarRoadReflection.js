@@ -52,7 +52,14 @@ export class PlanarRoadReflection {
         if (!this.scene) return;
         this.scene.traverse((obj) => {
             if (obj.isMesh || obj.isPoints) {
-                if (obj.name.includes('road') || obj.name.includes('Road') || obj.name.includes('asphalt') || obj.name.includes('Asphalt')) {
+                const mat = obj.material;
+                const samplesPlanar = !!(mat && mat.userData && mat.userData.uPlanarMap);
+                // CRITICAL: any mesh whose material samples the planar map MUST be
+                // excluded, or the renderer draws it into the same texture it
+                // samples -> GL feedback loop (massive per-frame validation errors).
+                if (samplesPlanar || mat === this._roadMaterial ||
+                    obj.name.includes('road') || obj.name.includes('Road') ||
+                    obj.name.includes('asphalt') || obj.name.includes('Asphalt')) {
                     this.roadMeshes.push(obj);
                 } else if (
                     obj.isPoints ||
@@ -69,6 +76,7 @@ export class PlanarRoadReflection {
     }
 
     update(renderer, mainCamera, wetness = 1.0, roadMaterial = null) {
+        if (roadMaterial) this._roadMaterial = roadMaterial;
         if (!this.enabled || wetness < 0.02 || !renderer || !mainCamera) return;
 
         // 1. Refresh mesh cache periodically (every ~3 seconds) to account for dynamic chunks

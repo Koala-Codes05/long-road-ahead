@@ -144,6 +144,15 @@ function initComposerAndPasses(r) {
     const comp = new EffectComposer(r);
     comp.addPass(new RenderPass(scene, camera));
 
+    // Diagnostic kill-switch: ?nopass=rain,bloom,grade,fisheye,motion,grain
+    // disables compositor passes (comma list) — used to isolate GPU/driver
+    // shader-compile failures per pass. Shared with WeatherSystem (rain).
+    const _noPass = new Set((new URLSearchParams(location.search).get('nopass') || '')
+        .split(',').map(s => s.trim()).filter(Boolean));
+    window.__LRA_NO_PASS = _noPass;
+    const passOn = (name) => !_noPass.has(name);
+    if (_noPass.size) console.warn('[LRA] disabled passes:', [..._noPass].join(', '));
+
     // Half-Resolution Tier (0.50x) - Bloom Pass. Upgraded from 0.25x for
     // tighter photoreal light bloom on neon signs, headlights & wet reflections
     bloomPass = new UnrealBloomPass(
@@ -152,19 +161,19 @@ function initComposerAndPasses(r) {
         0.55, // radius
         0.82, // threshold
     );
-    comp.addPass(bloomPass);
+    if (passOn('bloom')) comp.addPass(bloomPass);
 
     cinematicGradePass = createCinematicGradePass();
-    comp.addPass(cinematicGradePass);
+    if (passOn('grade')) comp.addPass(cinematicGradePass);
 
     fisheyePass = createFisheyePass();
-    comp.addPass(fisheyePass);
+    if (passOn('fisheye')) comp.addPass(fisheyePass);
 
     motionBlurPass = createMotionBlurPass();
-    comp.addPass(motionBlurPass);
+    if (passOn('motion')) comp.addPass(motionBlurPass);
 
     filmGrainPass = createFilmGrainPass();
-    comp.addPass(filmGrainPass);
+    if (passOn('grain')) comp.addPass(filmGrainPass);
 
     return comp;
 }
@@ -1477,7 +1486,16 @@ if (elBadgePhoto) elBadgePhoto.onclick = () => photoMode.toggle();
 
 window.addEventListener('keydown', (e) => {
     if (e.code === 'KeyT' && !e.repeat) cycleAudioProfile();
+    if (e.code === 'KeyB' && !e.repeat) cycleBodyPaint();
 });
+
+function cycleBodyPaint() {
+    const p = vehicle.cyclePaint();
+    if (p) {
+        feedback.popup(`🎨 ${p.name}<br><small style="font-size:11px;letter-spacing:1px;color:#9fb2cc">NFS GARAGE — BODY PAINT [B]</small>`, 'bank');
+        character.quip('New coat. Try to keep it shiny.');
+    }
+}
 
 const elBadgeRainmode = document.getElementById('badge-rainmode');
 if (elBadgeRainmode) {

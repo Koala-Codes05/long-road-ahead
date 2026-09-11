@@ -138,7 +138,6 @@ export class AudioEngine {
     async _preloadFerrariAudio() {
         const candidatePaths = this.profile ? this.profile.samplePaths : [
             'assets/Sounds/ferrari/ferrari-458-italia-sound-effect-going-fast-360530.mp3',
-            'assets/ferrari.mp3',
         ];
 
         for (const path of candidatePaths) {

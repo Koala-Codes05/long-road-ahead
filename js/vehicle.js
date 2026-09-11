@@ -36,6 +36,20 @@ export class Vehicle {
     constructor(scene) {
         this.scene = scene;
 
+        // NFS paint garage — clearcoat "paint" materials get color-cycled (KeyB)
+        // (must be initialised before _createCarModel is invoked below)
+        this.paintMats = new Set();
+        this.paints = [
+            { name: 'ROSSO CORSA', hex: 0xd11a2a },
+            { name: 'MIDNIGHT PURPLE II', hex: 0x4527c9 },   // NFS R34 vibe
+            { name: 'ELECTRIC BLUE', hex: 0x1d4fe0 },
+            { name: 'GHOST BLACK', hex: 0x0b0b0e },          // NFS GHOST 86 vibe
+            { name: 'SOLAR FLARE', hex: 0xff7a1a },
+            { name: 'KAIDO MINT', hex: 0x2fd49b },
+        ];
+        this.paintIndex = 0;
+        try { this.paintIndex = parseInt(localStorage.getItem('lra_paint') || '0', 10) || 0; } catch (e) { /* noop */ }
+
         // Vehicle Telemetry & Mass Parameters (Ferrari 458 Italia Specs)
         this.mass = 1420;        // kg
         this.wheelbase = 2.65;   // meters
@@ -157,7 +171,7 @@ export class Vehicle {
         // Two Bright Hard Headlight Spotlights (Left and Right)
         this.headlightSpots = [];
         this.headlightTargets = [];
-        
+
         const offsets = [-0.70, 0.70];
         offsets.forEach(() => {
             const spot = new THREE.SpotLight(0xfff2dc, 130.0, 190, Math.PI / 5.8, 0.48, 1.25);
@@ -236,10 +250,10 @@ export class Vehicle {
         ctx.fillRect(0, 0, 64, 64);
 
         const smokeMat = new THREE.PointsMaterial({
-            size: 2.8,
+            size: 1.7,
             map: new THREE.CanvasTexture(canvas),
             transparent: true,
-            opacity: 0.35,
+            opacity: 0.26,
             depthWrite: false,
             blending: THREE.NormalBlending,
         });
@@ -339,10 +353,10 @@ export class Vehicle {
         ctx.fillRect(0, 0, 64, 64);
 
         const sprayMat = new THREE.PointsMaterial({
-            size: 1.5,
+            size: 0.85,
             map: new THREE.CanvasTexture(canvas),
             transparent: true,
-            opacity: 0.35,
+            opacity: 0.22,
             depthWrite: false,
             blending: THREE.NormalBlending,
         });
@@ -358,6 +372,7 @@ export class Vehicle {
 
     _emitWaterSpray(x, z, intensity) {
         if (!this.waterSprayData) return;
+        if (this._mistV2Active()) return; // TireMist v2 handles wheel spray
         const data = this.waterSprayData[this.nextSprayIdx];
         const pos = this.waterSprayParticles.geometry.attributes.position.array;
         const idx = this.nextSprayIdx * 3;
@@ -493,7 +508,14 @@ export class Vehicle {
         return lightVector.normalize();
     }
 
+    _mistV2Active() {
+        return typeof window !== 'undefined' && window.__LRA_TIREMIST_V2;
+    }
+
     _emitSmoke(x, z, intensity) {
+        // Modular TireMist (weather/particles) renders tire smoke + spray with
+        // proper alpha sheets — stand down to avoid double-covering the screen.
+        if (this._mistV2Active()) return;
         const data = this.smokeData[this.nextSmokeIdx];
         const pos = this.smokeParticles.geometry.attributes.position.array;
         const idx = this.nextSmokeIdx * 3;
@@ -590,6 +612,7 @@ export class Vehicle {
             clearcoatRoughness: 0.06,
             reflectivity: 0.9,
         });
+        this._registerPaint(bodyMat);
         const carbonMat = new THREE.MeshStandardMaterial({ color: 0x111115, metalness: 0.95, roughness: 0.15 });
         const chassisMat = new THREE.MeshStandardMaterial({ color: 0x22252a, metalness: 0.85, roughness: 0.30 });
         const glassMat = new THREE.MeshStandardMaterial({ color: 0x112233, metalness: 0.9, roughness: 0.05, transparent: true, opacity: 0.55 });
@@ -805,6 +828,25 @@ export class Vehicle {
         return rootGroup;
     }
 
+    /** Register a material as paintable (clearcoat body work). */
+    _registerPaint(mat) {
+        if (mat && (mat.clearcoat > 0.3 || /paint|body|coat/i.test(mat.name || ''))) {
+            if (this.paintMats.size === 0) { /* first registration */ }
+            this.paintMats.add(mat);
+            mat.color.setHex(this.paints[this.paintIndex].hex);
+        }
+    }
+
+    /** Cycle the body paint (KeyB). Returns the chosen paint info. */
+    cyclePaint() {
+        if (!this.paintMats || this.paintMats.size === 0) return null;
+        this.paintIndex = (this.paintIndex + 1) % this.paints.length;
+        try { localStorage.setItem('lra_paint', String(this.paintIndex)); } catch (e) { /* noop */ }
+        const p = this.paints[this.paintIndex];
+        this.paintMats.forEach(m => m.color.setHex(p.hex));
+        return p;
+    }
+
     _loadFerrariModel() {
         // Legacy entry point — delegates to generic car loader for backwards compatibility
         return this._loadCarModel(CAR_DEFINITIONS[0]);
@@ -858,12 +900,19 @@ export class Vehicle {
     /** Ferrari-specific model setup: named wheels, body paint material, headlight/taillight materials */
     _setupFerrariModel(carModel) {
         carModel.scale.set(1.0, 1.0, 1.0);
-        carModel.position.set(0, 0, 0);
+        // Ground the model: wheel bottoms must touch y=0 (fixes "car floats in air")
+        const _bbox = new THREE.Box3().setFromObject(carModel);
+        if (isFinite(_bbox.min.y)) carModel.position.y = -_bbox.min.y + 0.005;
+        else carModel.position.set(0, 0, 0);
 
         carModel.traverse((child) => {
             if (child.isMesh) {
                 child.castShadow = true;
                 child.receiveShadow = true;
+
+                // Collect body-paint materials for the garage (KeyB)
+                const mats = Array.isArray(child.material) ? child.material : [child.material];
+                mats.forEach(m => { if (child.name !== 'lights' && child.name !== 'lights_red') this._registerPaint(m); });
 
                 if (child.name === 'lights') {
                     this.gltfHeadlightMat = new THREE.MeshStandardMaterial({
@@ -941,6 +990,7 @@ export class Vehicle {
                 reflectivity: 0.9,
             });
             bodyMesh.material = this.bodyMaterial;
+            this._registerPaint(this.bodyMaterial);
         }
     }
 
