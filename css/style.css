@@ -1159,3 +1159,14 @@ body.photo-mode #webgl-canvas { cursor: none; }
 .switch-wrap input { accent-color: #ff2d95; width: 16px; height: 16px; cursor: pointer; }
 .pm-ctl { display: flex; flex-direction: column; gap: 9px; font-family: 'Rajdhani'; font-size: 14.5px; color: #b8c4d8; }
 .pm-ctl b { font-family: 'Orbitron'; color: #ff9ecb; font-size: 11px; margin-right: 2px; }
+
+/* ==================== CINEMATIC LETTERBOX ==================== */
+#cine-bars { position: fixed; inset: 0; z-index: 500; pointer-events: none; }
+.cine-bar {
+    position: absolute; left: 0; right: 0; height: 0;
+    background: #000;
+    transition: height 0.9s cubic-bezier(0.65, 0, 0.35, 1);
+}
+.cine-bar.top { top: 0; }
+.cine-bar.bottom { bottom: 0; }
+#cine-bars.active .cine-bar { height: calc((100vh - (100vw / 2.39)) / 2); }

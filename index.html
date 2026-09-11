@@ -157,6 +157,9 @@
         </div>
     </div>
 
+    <!-- 2.39:1 cinematic letterbox bars (CINEMATIC look, KeyM) -->
+    <div id="cine-bars" aria-hidden="true"><div class="cine-bar top"></div><div class="cine-bar bottom"></div></div>
+
     <!-- ===== PAUSE MENU (ESC) ===== -->
     <div id="pause-overlay" aria-hidden="true">
         <div class="pm-backdrop"></div>
@@ -195,6 +198,14 @@
                     <div class="set-row set-switches">
                         <label class="switch-wrap"><input type="checkbox" id="set-voice"><span>SOVEETA VOICE</span></label>
                         <label class="switch-wrap"><input type="checkbox" id="set-fps"><span>FPS COUNTER</span></label>
+                    </div>
+                    <div class="set-row">
+                        <label>LOOK PRESET</label>
+                        <select id="set-look">
+                            <option value="native">NATIVE (Arcade)</option>
+                            <option value="cinematic">CINEMATIC FILM</option>
+                            <option value="noir">NOIR (Kodak 500T)</option>
+                        </select>
                     </div>
                     <div class="set-row">
                         <label>MASTER VOLUME</label>

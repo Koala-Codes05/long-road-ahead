@@ -20,6 +20,7 @@ import { Minimap } from './minimap.js';
 import { AudioEngine } from './audio.js';
 import { CharacterSystem } from './character.js';
 import { PauseSystem, SettingsSystem } from './ui.js';
+import { LookPresets } from './lookPresets.js';
 import { FeedbackSystem } from './feedback.js';
 import { PhotoMode } from './photoMode.js';
 import { getProfileList } from './vehicleProfiles.js';
@@ -830,6 +831,15 @@ const settingsSystem = new SettingsSystem();
 settingsSystem.init(uiDeps);
 uiDeps.settings = settingsSystem;
 
+// Cinematic look presets (KeyM / Settings > LOOK)
+const lookPresets = new LookPresets({
+    gradePass: cinematicGradePass,
+    bloomPass,
+    grainPass: filmGrainPass,
+});
+window.__LRA_LOOKPRESETS = lookPresets;
+lookPresets.restoreFromStorage();
+
 // Auto-unlock Web Audio on user gesture
 const unlockAudio = () => {
     if (audioEngine) audioEngine.init();
@@ -1148,7 +1158,8 @@ function updateCamera(dt) {
     }
 
     // Natural FOV Control (60° standard -> 68° max during speed & Nitro)
-    const targetFov = isNitro ? 68.0 : (60.0 + sr * 3.0);
+    const fovScale = (window.__LRA_FOV_SCALE || 1.0);
+    const targetFov = (isNitro ? 68.0 : (60.0 + sr * 3.0)) * fovScale;
     const fovLerpRate = isNitro ? 10.0 : 8.0;
     camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, dt * fovLerpRate);
     camera.updateProjectionMatrix();
@@ -1164,7 +1175,7 @@ function updateCamera(dt) {
     }
 
     // Bloom ramps with speed (balanced for subtle glow)
-    if (bloomPass) bloomPass.strength = 0.25 + sr * 0.2;
+    if (bloomPass) bloomPass.strength = (0.25 + sr * 0.2) * (window.__LRA_BLOOM_SCALE || 1.0);
 
     // Dynamic High-Speed Radial Motion Blur
     if (motionBlurPass) {
@@ -1280,6 +1291,13 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'KeyT' && !e.repeat) cycleAudioProfile();
     if (e.code === 'KeyB' && !e.repeat) cycleBodyPaint();
     if (e.code === 'KeyG' && !e.repeat) cycleHandlingMode();
+    if (e.code === 'KeyM' && !e.repeat) {
+        const p = lookPresets.cycle();
+        feedback.popup(`🎞 ${p.label}<br><small style="font-size:11px;letter-spacing:1px;color:#9fb2cc">MOVIE LOOK [M]</small>`, 'bank');
+        character.quip(p.id === 'native' ? 'Back to reality.' : 'Roll cameras. This run is cinema.');
+        const lookSel = document.getElementById('set-look');
+        if (lookSel) lookSel.value = p.id;
+    }
 });
 
 function cycleHandlingMode() {

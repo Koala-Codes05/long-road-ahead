@@ -36,6 +36,7 @@ Open **http://localhost:3000** in your browser (Chrome/Edge/Firefox recommended)
 | `B` | **NFS garage paint** — Rosso Corsa / Midnight Purple / Electric Blue / Ghost Black / Solar Flare / Kaido Mint |
 | `G` | **Handling mood** — Grip (Driveclub hardcore) / Balanced (NFS Heat) / Drift (NFS 2015) |
 | `ESC` | **Pause menu** — resume / settings / controls, live stats |
+| `M` | **Movie look** — Native / Cinematic Film / Noir color presets with 2.39:1 letterbox |
 | `R` | Rain FX mode |
 | `C` / `V` | Camera view cycle |
 | `L` | Headlights | `H` | Hazards | `Q`/`E` | Signals |

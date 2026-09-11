@@ -122,6 +122,16 @@ export class SettingsSystem {
         bindToggle('set-voice', 'voiceLines');
         bindToggle('set-fps', 'showFps');
 
+        const lookSel = document.getElementById('set-look');
+        if (lookSel) {
+            let cur = 'native';
+            try { cur = localStorage.getItem('lra_look') || 'native'; } catch (e) { /* noop */ }
+            lookSel.value = cur;
+            lookSel.addEventListener('change', () => {
+                if (window.__LRA_LOOKPRESETS) window.__LRA_LOOKPRESETS.apply(lookSel.value);
+            });
+        }
+
         const vol = document.getElementById('set-volume');
         if (vol) {
             vol.value = Math.round(s.masterVolume * 100);
