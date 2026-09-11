@@ -1,33 +1,18 @@
 # Session Summary
 
-## Audi Independent Wheel Animation
+## WebGL Shader Compilation Fix (`Program Info Log: Fragment shader is not compiled`)
 
-Implemented independent wheel animation for the Audi Novulari without preprocessing the GLB externally.
+### Root Cause
+- In [`js/cinematicGradeShader.js`](file:///d:/Dev%20Domain/~Projects/Long%20Road%20Ahead/js/cinematicGradeShader.js), the photo-mode temperature grading uniform `uWarmth` was defined in the JS uniform map (`uWarmth: { value: 0.0 }`) and referenced in the fragment shader logic (`graded.r += uWarmth * ...`), but was omitted from the GLSL uniform declarations in `fragmentShader`.
+- When Three.js initialized `cinematicGradePass` during post-processing setup on frame 1, WebGL failed to compile the fragment shader due to the undeclared `uWarmth` identifier, resulting in `THREE.WebGLProgram: Shader Error 0 - VALIDATE_STATUS false`.
 
-### Implementation
-
-- Added `wheelPartMatchers` to the Audi definition so the generic loader knows which combined meshes contain wheel parts.
-- Added runtime geometry splitting in `js/vehicle.js`:
-  - `_computeGenericWheelCenters()` derives the four wheel centers from the combined tire mesh.
-  - `_buildTriangleGeometry()` creates per-corner geometry while preserving attributes and handling interleaved GLTF buffers.
-  - `_setupGenericWheelPivots()` creates four suspension pivots, two front steering pivots, and four spin groups.
-  - Tire, brake disk, and red wheel-detail triangles are split into the matching corner.
-  - Non-wheel leftover triangles remain visible as body geometry instead of being hidden.
-- Added model-local animation axes for the Audi source orientation:
-  - Suspension travels along source Z.
-  - Steering rotates around source Z.
-  - Wheel spin rotates around source Y.
-- Refactored GLTF wheel animation data to be stored per loaded car model (`model.userData.spinWheels` / `steerPivots`) so switching between Ferrari and Audi restores the correct wheel sets.
-- Activation now enables independent GLTF wheel animation for any car that provides wheel pivots, not only the Ferrari.
-- Wheel assemblies reset when switching cars or entering studio mode.
+### Fixes Applied
+1. **`js/cinematicGradeShader.js`**:
+   - Added `uniform float uWarmth;` to the fragment shader uniform declarations.
+2. **`js/weather/materials/WetRoadManager.js`**:
+   - Corrected planar reflection UV calculation to world space: `vReflectionUv = uTextureMatrix * (modelMatrix * vec4(transformed, 1.0));`.
+   - Added `#ifdef USE_UV` fallback guards around ripple and puddle UV sampling in the fragment shader patches to prevent compilation failures when UV coordinates are absent.
 
 ### Verification
-
-- `node --check js/vehicle.js` passed.
-- `git diff --check -- js/vehicle.js` passed.
-- Browser verification selected the Audi successfully:
-  - 4 spin wheels and 2 steering pivots created.
-  - Each Audi wheel contained brake disk, tire, and metal-red detail meshes.
-  - Manual drive simulation changed wheel spin quaternions, front steering quaternions, and per-corner suspension positions.
-  - Switching back to the Ferrari restored its original wheel animation set.
-- No page errors, console errors, or WebGL errors were reported.
+- Ran static GLSL uniform and identifier analysis across all project shaders (`js/cinematicGradeShader.js`, `js/filmGrainShader.js`, `js/fisheyeShader.js`, `js/motionBlurShader.js`, `js/rainShader.js`, `js/vehicle.js`, `js/main.js`, `js/weather/**/*.js`).
+- Syntax validation verified: `node --check js/cinematicGradeShader.js js/weather/materials/WetRoadManager.js`.

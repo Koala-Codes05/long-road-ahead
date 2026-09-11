@@ -63,7 +63,7 @@ export class WetRoadManager {
                 '#include <project_vertex>',
                 `
                 #include <project_vertex>
-                vReflectionUv = uTextureMatrix * vec4(transformed, 1.0);
+                vReflectionUv = uTextureMatrix * (modelMatrix * vec4(transformed, 1.0));
                 `
             );
 
@@ -82,9 +82,13 @@ export class WetRoadManager {
                 `
                 #include <normal_fragment_maps>
                 if (uWetness > 0.01) {
-                    // Dual-layer animated UV scrolling for dynamic rain impact ripples
+                    #ifdef USE_UV
                     vec2 rippleUv1 = vUv * 28.0 + vec2(uTime * 0.35, uTime * 0.25);
                     vec2 rippleUv2 = vUv * 42.0 + vec2(-uTime * 0.20, uTime * 0.40);
+                    #else
+                    vec2 rippleUv1 = vec2(uTime * 0.35, uTime * 0.25);
+                    vec2 rippleUv2 = vec2(-uTime * 0.20, uTime * 0.40);
+                    #endif
                     
                     vec3 ripNorm1 = texture2D(uRippleMap, rippleUv1).xyz * 2.0 - 1.0;
                     vec3 ripNorm2 = texture2D(uRippleMap, rippleUv2).xyz * 2.0 - 1.0;
@@ -114,7 +118,11 @@ export class WetRoadManager {
                     
                     // Distance-scaled ripple distortion
                     float rippleDistortScale = mix(0.0015, 0.0035, ssrDistanceWeight);
+                    #ifdef USE_UV
                     vec2 distUv = reflUv + vec2(sin(uTime * 3.5 + vUv.y * 25.0), cos(uTime * 2.8 + vUv.x * 25.0)) * rippleDistortScale * uWetness;
+                    #else
+                    vec2 distUv = reflUv + vec2(sin(uTime * 3.5), cos(uTime * 2.8)) * rippleDistortScale * uWetness;
+                    #endif
                     
                     vec4 planarColor = texture2D(uPlanarMap, distUv);
                     

@@ -36,6 +36,7 @@ export function createCinematicGradePass() {
             uniform float uHighlightCompress;
             uniform float uShadowLift;
             uniform float uSaturation;
+            uniform float uWarmth;
 
             varying vec2 vUv;
 
