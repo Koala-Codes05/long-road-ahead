@@ -24,6 +24,9 @@ export class DriftingSystem {
         const vLongAbs = Math.max(0.2, Math.abs(this.v.vLong));
         const kmh = Math.abs(this.v.vLong * 3.6);
 
+        // Handling profile (KeyG): GRIP/BALANCED/DRIFT multipliers
+        const h = this.v.handling || { steerSens:1, hbBreak:0.25, gripMult:1, counterAssist:1, driftCapMult:1, yawInit:1.4 };
+
         // 1. Calculate Front and Rear Tire Slip Angles
         this.alphaF = Math.atan2(this.vLat + this.v.yawRate * this.v.cgToFront, vLongAbs) - this.v.steerAngle * Math.sign(this.v.vLong || 1);
         this.alphaR = Math.atan2(this.vLat - this.v.yawRate * this.v.cgToRear, vLongAbs);
@@ -51,7 +54,7 @@ export class DriftingSystem {
         const brakeLockRatio = this.v.turningSystem ? this.v.turningSystem.brakeLockRatio : 0;
 
         // 4. Rear Grip Factor: smooth controlled handbrake rear traction release
-        const handbrakeGripBreak = 0.25 * weatherGripFactor;
+        const handbrakeGripBreak = h.hbBreak * weatherGripFactor;
         let rearGripFactor;
         if (isHandbrake) {
             rearGripFactor = handbrakeGripBreak;
@@ -67,7 +70,7 @@ export class DriftingSystem {
 
         if (isHandbrake && canDrift) {
             // Handbrake drift: rear tires lose grip, vLat evolves naturally from yaw rotation and momentum
-            this.vLat += dvLat * dt * 1.4 * (1.0 - rearGripFactor);
+            this.vLat += dvLat * dt * h.yawInit * (1.0 - rearGripFactor);
             this.isDrifting = true;
         } else if (Math.abs(this.alphaR) > 0.12 && vLongAbs > 4.0 && canDrift) {
             // Sustained drift via high rear slip angle with pacejka grip
@@ -77,7 +80,7 @@ export class DriftingSystem {
         } else {
             // Normal driving: all four tires follow the bicycle-model arc instead of pivoting around one axle.
             const lowSpeedBite = THREE.MathUtils.lerp(1.9, 1.0, THREE.MathUtils.smoothstep(kmh, 0, 85));
-            const gripStrength = 13.0 * lowSpeedBite * Math.max(0.45, Math.abs(FyRear)) * rearGripFactor * (1.0 - brakeLockRatio * 0.45);
+            const gripStrength = 13.0 * h.gripMult * lowSpeedBite * Math.max(0.45, Math.abs(FyRear)) * rearGripFactor * (1.0 - brakeLockRatio * 0.45);
             const pushSign = Math.sign(targetLateralVelocity || this.v.steerAngle || this.v.yawRate || 1);
             const highSpeedPush = THREE.MathUtils.smoothstep(kmh, 55.0, 110.0);
             const tirePush = pushSign * Math.abs(this.v.vLong) * highSpeedPush * (tireScrub * 0.08 + brakeLockRatio * 0.16);
@@ -89,7 +92,7 @@ export class DriftingSystem {
         if (this.isDrifting && Math.abs(this.driftAngle) > 0.05) {
             const steerAngle = this.v.steerAngle;
             const driftSign = Math.sign(this.driftAngle);
-            const counterSteerEffect = Math.max(0, -steerAngle * driftSign) * 0.8;
+            const counterSteerEffect = Math.max(0, -steerAngle * driftSign) * 0.8 * h.counterAssist;
             if (counterSteerEffect > 0) {
                 this.vLat = THREE.MathUtils.lerp(this.vLat, 0.0, dt * counterSteerEffect * 10.0);
             }
@@ -100,7 +103,7 @@ export class DriftingSystem {
         // 7. Drift Angle Calculation (capped at 45°)
         if (Math.abs(this.v.vLong) > 1.0) {
             this.driftAngle = Math.atan2(this.vLat, Math.abs(this.v.vLong));
-            const maxDriftAngle = isHandbrake ? 1.22 : Math.PI / 4; // ~70 degrees on handbrake
+            const maxDriftAngle = isHandbrake ? 1.22 : (Math.PI / 4) * h.driftCapMult; // ~70 degrees on handbrake
             this.driftAngle = THREE.MathUtils.clamp(this.driftAngle, -maxDriftAngle, maxDriftAngle);
         } else {
             this.driftAngle = 0;

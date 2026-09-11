@@ -1258,7 +1258,16 @@ if (elBadgePhoto) elBadgePhoto.onclick = () => photoMode.toggle();
 window.addEventListener('keydown', (e) => {
     if (e.code === 'KeyT' && !e.repeat) cycleAudioProfile();
     if (e.code === 'KeyB' && !e.repeat) cycleBodyPaint();
+    if (e.code === 'KeyG' && !e.repeat) cycleHandlingMode();
 });
+
+function cycleHandlingMode() {
+    const h = vehicle.cycleHandling();
+    if (h) {
+        feedback.popup(`🕹 ${h.name}<br><small style="font-size:11px;letter-spacing:1px;color:#9fb2cc">${h.blurb}</small>`, 'bank');
+        character.quip(h.id === 'drift' ? 'Sideways mode. Let’s paint arcs.' : (h.id === 'grip' ? 'Apex hunting. Brake late, carry speed.' : 'Balanced it is.'));
+    }
+}
 
 function cycleBodyPaint() {
     const p = vehicle.cyclePaint();

@@ -31,6 +31,24 @@ export class Vehicle {
         this.paintIndex = 0;
         try { this.paintIndex = parseInt(localStorage.getItem('lra_paint') || '0', 10) || 0; } catch (e) { /* noop */ }
 
+        // Handling profiles (KeyG) — NFS/Driveclub research-mapped moods:
+        // GRIP    = Driveclub "Hardcore": planted, understeer-honest, technical
+        // BALANCED= NFS Heat default: half-sim, friendly
+        // DRIFT   = NFS 2015: trivial initiation, stealth auto-countersteer
+        this.handlingProfiles = [
+            { id: 'grip', name: 'GRIP · DRIVECLUB HARDCORE', steerSens: 0.85, hbBreak: 0.65, gripMult: 1.30, counterAssist: 0.8, driftCapMult: 0.7, yawInit: 1.0,
+              blurb: 'Technical & planted. Proper braking zones, tiny slides only.' },
+            { id: 'balanced', name: 'BALANCED · NFS HEAT', steerSens: 1.0, hbBreak: 0.25, gripMult: 1.0, counterAssist: 1.0, driftCapMult: 1.0, yawInit: 1.4,
+              blurb: 'Half-sim default. Slide when you mean it.' },
+            { id: 'drift', name: 'DRIFT · NFS 2015', steerSens: 1.15, hbBreak: 0.10, gripMult: 0.85, counterAssist: 2.2, driftCapMult: 1.35, yawInit: 2.1,
+              blurb: 'Handbrake tap = sideways. Hidden counter-steer aid, big angles.' },
+        ];
+        this.handlingIndex = 1;
+        try {
+            const hi = parseInt(localStorage.getItem('lra_handling') || '1', 10);
+            if (hi >= 0 && hi < this.handlingProfiles.length) this.handlingIndex = hi;
+        } catch (e) { /* noop */ }
+
         // Vehicle Telemetry & Mass Parameters (Ferrari 458 Italia Specs)
         this.mass = 1420;        // kg
         this.wheelbase = 2.65;   // meters
@@ -770,6 +788,15 @@ export class Vehicle {
             this.paintMats.add(mat);
             mat.color.setHex(this.paints[this.paintIndex].hex);
         }
+    }
+
+    get handling() { return this.handlingProfiles[this.handlingIndex]; }
+
+    /** Cycle handling mood (KeyG) — GRIP / BALANCED / DRIFT. */
+    cycleHandling() {
+        this.handlingIndex = (this.handlingIndex + 1) % this.handlingProfiles.length;
+        try { localStorage.setItem('lra_handling', String(this.handlingIndex)); } catch (e) { /* noop */ }
+        return this.handlingProfiles[this.handlingIndex];
     }
 
     /** Cycle the body paint (KeyB). Returns the chosen paint info. */

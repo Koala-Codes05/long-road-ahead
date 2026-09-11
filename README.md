@@ -34,6 +34,7 @@ Open **http://localhost:3000** in your browser (Chrome/Edge/Firefox recommended)
 | `TAB` | **Driver dossier** — meet Soveeta |
 | `T` | **Garage** — switch engine profile (458 V8 / MK-IV 2JZ / V10 RS) |
 | `B` | **NFS garage paint** — Rosso Corsa / Midnight Purple / Electric Blue / Ghost Black / Solar Flare / Kaido Mint |
+| `G` | **Handling mood** — Grip (Driveclub hardcore) / Balanced (NFS Heat) / Drift (NFS 2015) |
 | `R` | Rain FX mode |
 | `C` / `V` | Camera view cycle |
 | `L` | Headlights | `H` | Hazards | `Q`/`E` | Signals |

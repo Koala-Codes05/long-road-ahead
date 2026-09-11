@@ -27,6 +27,7 @@ export class TurningSystem {
 
     update(dt, input, weatherGripFactor = 1.0, weatherType = 3) {
         let sensMult = input.precision25 ? 0.25 : (input.precision ? 0.5 : 1.0);
+        sensMult *= (this.v.handling ? this.v.handling.steerSens : 1.0);
         const vLong = this.v.vLong;
         const kmh = Math.abs(vLong * 3.6);
 
