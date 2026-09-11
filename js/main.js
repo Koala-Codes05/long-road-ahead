@@ -9,7 +9,7 @@ import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
 import { Vehicle } from './vehicle.js';
 import { World, getRoadZoneInfo, getRoadPoint } from './world.js';
 import { InputManager } from './input.js';
-import { WeatherSystem } from './weather.js';
+import { WeatherSystem } from './weather/WeatherSystem.js';
 import { CloudSystem } from './clouds.js';
 import { SpeedTrailSystem } from './speedTrail.js';
 import { createMotionBlurPass } from './motionBlurShader.js';
@@ -18,6 +18,10 @@ import { createCinematicGradePass } from './cinematicGradeShader.js';
 import { createFisheyePass } from './fisheyeShader.js';
 import { Minimap } from './minimap.js';
 import { AudioEngine } from './audio.js';
+import { CharacterSystem } from './character.js';
+import { FeedbackSystem } from './feedback.js';
+import { PhotoMode } from './photoMode.js';
+import { getProfileList } from './vehicleProfiles.js';
 
 /* =============================================
    SCENE (Moody Night Fog & Atmosphere)
@@ -112,9 +116,10 @@ function setupRendererSettings(r) {
         document.body.insertBefore(r.domElement, document.body.firstChild);
     }
     r.setSize(window.innerWidth, window.innerHeight);
-    r.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
+    // PHOTOREALISM: full-resolution render up to 2x device pixel ratio (was capped at 1.25)
+    r.setPixelRatio(Math.min(window.devicePixelRatio, 2.0));
     r.shadowMap.enabled = true;
-    r.shadowMap.type = THREE.PCFShadowMap; // Fast PCF filtered shadows (1.5-2.0ms budget)
+    r.shadowMap.type = THREE.PCFSoftShadowMap; // Soft contact-adjacent penumbra for photoreal shadows
     r.toneMapping = THREE.ACESFilmicToneMapping;
     r.toneMappingExposure = 1.18; // Balanced HDR exposure curve
     r.outputColorSpace = THREE.SRGBColorSpace;
@@ -136,12 +141,13 @@ function initComposerAndPasses(r) {
     const comp = new EffectComposer(r);
     comp.addPass(new RenderPass(scene, camera));
 
-    // Quarter-Resolution Tier (0.25x) - Bloom Pass for fast fill-rate post-processing
+    // Half-Resolution Tier (0.50x) - Bloom Pass. Upgraded from 0.25x for
+    // tighter photoreal light bloom on neon signs, headlights & wet reflections
     bloomPass = new UnrealBloomPass(
-        new THREE.Vector2(Math.floor(window.innerWidth * 0.25), Math.floor(window.innerHeight * 0.25)),
+        new THREE.Vector2(Math.floor(window.innerWidth * 0.5), Math.floor(window.innerHeight * 0.5)),
         0.45, // strength
-        0.40, // radius
-        0.85, // threshold
+        0.55, // radius
+        0.82, // threshold
     );
     comp.addPass(bloomPass);
 
@@ -227,11 +233,8 @@ function attemptWebGLRecovery() {
         setupRendererSettings(renderer);
         composer = initComposerAndPasses(renderer);
 
-        if (typeof weather !== 'undefined' && weather) {
-            weather.composer = composer;
-            if (weather.rainPass && composer) {
-                composer.addPass(weather.rainPass);
-            }
+        if (typeof weather !== 'undefined' && weather && typeof weather.reattachComposer === 'function') {
+            weather.reattachComposer(composer);
         }
 
         hideWebGLContextErrorUI();
@@ -372,7 +375,7 @@ const hemiLight = new THREE.HemisphereLight(0x4c607a, 0x18202d, 0.50); scene.add
 const moon = new THREE.DirectionalLight(0xb8d0f5, 0.38); // Lowered directional moonlight
 moon.position.set(15, 30, -180);
 moon.castShadow = true;
-moon.shadow.mapSize.set(1024, 1024); // Fast, optimized crisp shadow map
+moon.shadow.mapSize.set(2048, 2048); // Photoreal 2K crisp shadow map (doubled for fine car/fence shadows)
 moon.shadow.bias = -0.0001; // Prevent shadow acne
 moon.shadow.normalBias = 0.03; // Smooth surface shadow contact
 moon.shadow.camera.left = -70;
@@ -768,8 +771,34 @@ const speedTrailSystem = new SpeedTrailSystem(scene, vehicle.mesh);
 // Need for Speed / Driveclub Circular Minimap Radar HUD
 const minimap = new Minimap();
 
-// Ferrari Engine Sound & Audio Controller
+// Ferrari Engine Sound & Audio Controller (multi-vehicle profiles)
 const audioEngine = new AudioEngine();
+
+// SOVEETA — driver character (HUD chip, quips, voice lines, dossier)
+const character = new CharacterSystem();
+character.init();
+
+// Gameplay feedback loop — drift fame, stunt popups, smoke & squeal rewards
+const feedback = new FeedbackSystem(vehicle, character, audioEngine);
+feedback.attachWeather(weather);
+
+// Photoreal exposure base (weather presets own this; photo mode multiplies it)
+let baseExposureValue = 0.88;
+
+// Dedicated Photo Mode (tiled super-resolution renderer, 2K/4K/8K/16K)
+const photoMode = new PhotoMode({
+    camera,
+    vehicle,
+    character,
+    getRenderer: () => renderer,
+    getComposer: () => composer,
+    getBloom: () => bloomPass,
+    getGrain: () => filmGrainPass,
+    getMotionBlur: () => motionBlurPass,
+    getGrade: () => cinematicGradePass,
+    getBaseExposure: () => baseExposureValue,
+});
+photoMode.init();
 
 // Auto-unlock Web Audio on user gesture
 const unlockAudio = () => {
@@ -793,6 +822,7 @@ if (startBtn) {
 // Weather Preset Switcher UI & Environment Sync
 function applyWeatherEnvironment(type) {
     weather.setWeather(type);
+    if (typeof character !== 'undefined' && character) character.onWeatherChange();
     if (cloudSystem && cloudSystem.setWeather) cloudSystem.setWeather(type);
 
     if (world.streetLampPoolMat && world.streetLampGlowMat) {
@@ -821,7 +851,8 @@ function applyWeatherEnvironment(type) {
         cameraDiffuseLight.intensity = 0.7;
         cameraLight.intensity = 0.4;
 
-        if (renderer) renderer.toneMappingExposure = 0.88;
+        baseExposureValue = 0.88;
+        if (renderer) renderer.toneMappingExposure = 0.88 * (photoMode && photoMode.active ? photoMode.settings.exposure : 1.0);
 
     } else if (type === 1) { // DRIZZLE (Moody Night Drizzle)
         if (nightHdrTexture) scene.environment = nightHdrTexture;
@@ -844,7 +875,8 @@ function applyWeatherEnvironment(type) {
         cameraDiffuseLight.intensity = 0.8;
         cameraLight.intensity = 0.5;
 
-        if (renderer) renderer.toneMappingExposure = 0.92;
+        baseExposureValue = 0.92;
+        if (renderer) renderer.toneMappingExposure = 0.92 * (photoMode && photoMode.active ? photoMode.settings.exposure : 1.0);
 
     } else if (type === 2) { // CLOUDY DAY (Daytime Storm / Overcast Daytime Rain)
         if (dayHdrTexture) scene.environment = dayHdrTexture;
@@ -867,7 +899,8 @@ function applyWeatherEnvironment(type) {
         cameraDiffuseLight.intensity = 1.0;
         cameraLight.intensity = 0.6;
 
-        if (renderer) renderer.toneMappingExposure = 0.95;
+        baseExposureValue = 0.95;
+        if (renderer) renderer.toneMappingExposure = 0.95 * (photoMode && photoMode.active ? photoMode.settings.exposure : 1.0);
 
     } else { // CLEAR (Night Sky with Moon)
         if (nightHdrTexture) scene.environment = nightHdrTexture;
@@ -890,7 +923,8 @@ function applyWeatherEnvironment(type) {
         cameraDiffuseLight.intensity = 0.8;
         cameraLight.intensity = 0.5;
 
-        if (renderer) renderer.toneMappingExposure = 0.90;
+        baseExposureValue = 0.90;
+        if (renderer) renderer.toneMappingExposure = 0.90 * (photoMode && photoMode.active ? photoMode.settings.exposure : 1.0);
     }
 }
 document.querySelectorAll('.weather-btn').forEach(btn => {
@@ -953,6 +987,12 @@ let cameraShakeTime = 0;
 let chaseCameraHeading = 0;
 
 function updateCamera(dt) {
+    // PHOTO MODE: free cinematic orbit replaces the driving cameras
+    if (photoMode && photoMode.active) {
+        photoMode.updateCamera(dt);
+        return;
+    }
+
     const sr = Math.min(Math.abs(vehicle.speed) / vehicle.maxSpeed, 1);
     const mode = input.cameraMode !== undefined ? input.cameraMode : 0;
     const isNitro = !!(vehicle && vehicle.isNitro);
@@ -1177,6 +1217,39 @@ if (elBadgeDissect) {
     elBadgeDissect.onclick = () => { input.dissect = !input.dissect; };
 }
 
+/* =============================================
+   GARAGE — MULTI-VEHICLE AUDIO PROFILES (T)
+   ============================================= */
+const elBadgeGarage = document.getElementById('badge-garage');
+const audioProfiles = getProfileList();
+let audioProfileIdx = 0;
+
+function cycleAudioProfile() {
+    audioProfileIdx = (audioProfileIdx + 1) % audioProfiles.length;
+    const p = audioEngine.setAudioProfile(audioProfiles[audioProfileIdx].id);
+    if (elBadgeGarage) {
+        elBadgeGarage.textContent = `🏎 ${p.displayName}`;
+        elBadgeGarage.style.borderColor = p.accent;
+        elBadgeGarage.style.color = p.accent;
+    }
+    feedback.popup(`🏎 ${p.displayName}<br><small style="font-size:11px;letter-spacing:1px;color:#9fb2cc">${p.engineNote}</small>`, 'bank');
+    character.onGarageChange(p.displayName);
+}
+if (elBadgeGarage) {
+    const cur = audioProfiles[audioProfileIdx];
+    elBadgeGarage.title = `Switch car (T) — ${cur.engineNote}`;
+    elBadgeGarage.style.borderColor = cur.accent;
+    elBadgeGarage.style.color = cur.accent;
+    elBadgeGarage.onclick = cycleAudioProfile;
+}
+
+const elBadgePhoto = document.getElementById('badge-photo');
+if (elBadgePhoto) elBadgePhoto.onclick = () => photoMode.toggle();
+
+window.addEventListener('keydown', (e) => {
+    if (e.code === 'KeyT' && !e.repeat) cycleAudioProfile();
+});
+
 const elBadgeRainmode = document.getElementById('badge-rainmode');
 if (elBadgeRainmode) {
     elBadgeRainmode.onclick = () => {
@@ -1214,9 +1287,9 @@ window.addEventListener('resize', () => {
         composer.setSize(w, h);
     }
 
-    // Quarter Resolution (0.25x) - Bloom Pass Fill Rate
+    // Half Resolution (0.50x) - Bloom Pass Fill Rate (photoreal tier upgrade)
     if (bloomPass) {
-        bloomPass.setSize(Math.floor(w * 0.25), Math.floor(h * 0.25));
+        bloomPass.setSize(Math.floor(w * 0.5), Math.floor(h * 0.5));
     }
 
     // Half Resolution (0.50x) - Planar Road Reflection Target
@@ -1388,6 +1461,7 @@ const elFrameTimeVal = document.getElementById('frametime-val');
    GAME LOOP
    ============================================= */
 const clock = new THREE.Clock();
+let wasNitroOn = false;
 
 function animate() {
     requestAnimationFrame(animate);
@@ -1409,24 +1483,40 @@ function animate() {
     }
 
     const dt = Math.min(clock.getDelta(), 0.05);
+    const photoActive = photoMode && photoMode.active;
 
-    vehicle.camera = camera;
-    vehicle.update(dt, input, weather);
-    world.update(vehicle.mesh.position);
-    cloudSystem.update(dt, vehicle.mesh.position);
-    weather.update(dt, input.cameraMode, camera, renderer);
-    audioEngine.update(vehicle, weather.weatherType !== 3, weather.weatherType);
+    if (!photoActive) {
+        // ---- LIVE SIMULATION (frozen while photo mode frames the shot) ----
+        vehicle.camera = camera;
+        vehicle.update(dt, input, weather);
+        world.update(vehicle.mesh.position);
+        cloudSystem.update(dt, vehicle.mesh.position);
+        weather.update(dt, input.cameraMode, camera, renderer);
+        audioEngine.update(vehicle, weather.weatherType !== 3, weather.weatherType);
 
-    const isDrifting = vehicle.isDrifting || input.handbrake || (input.brake && Math.abs(input.steering) > 0.3);
-    speedTrailSystem.update(dt, vehicle.getSpeedKmh(), isDrifting, input.brake);
+        const isDrifting = vehicle.isDrifting || input.handbrake || (input.brake && Math.abs(input.steering) > 0.3);
+        speedTrailSystem.update(dt, vehicle.getSpeedKmh(), isDrifting, input.brake);
 
+        // Soveeta shouts when NOS lights
+        const nitroOn = !!(vehicle && vehicle.isNitro);
+        if (nitroOn && !wasNitroOn) character.onNitroStart();
+        wasNitroOn = nitroOn;
+
+        updateStreetlampLighting(dt);
+        updateHUD();
+        feedback.update(dt);
+    }
+
+    character.update(dt);
     updateCamera(dt);
-    updateStreetlampLighting(dt);
-    updateHUD();
-    if (composer) {
-        composer.render();
-    } else if (renderer) {
-        renderer.render(scene, camera);
+
+    // During a tiled super-res capture the PhotoMode drives the composer itself
+    if (!photoMode || !photoMode.capturing) {
+        if (composer) {
+            composer.render();
+        } else if (renderer) {
+            renderer.render(scene, camera);
+        }
     }
 }
 animate();

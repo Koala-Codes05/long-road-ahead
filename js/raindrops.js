@@ -409,4 +409,44 @@ export class Raindrops {
 
         this.updateDrops(timeScale);
     }
+
+    /** Remove every active droplet (used by weather presets & CLEAR weather). */
+    clearDrops() {
+        this.drops = [];
+        this.dropletsCounter = 0;
+        this.clearCanvas();
+    }
+
+    /**
+     * Wipe droplets inside a wiper arc band: drops whose polar coordinates
+     * around (pivotX, pivotY) fall within [startAngle, endAngle] at a radius
+     * between innerRadius and outerRadius are killed (they fade out naturally).
+     */
+    clearWiperArc(pivotX, pivotY, startAngle, endAngle, innerRadius, outerRadius) {
+        if (!this.drops || this.drops.length === 0) return;
+        const TWO_PI = Math.PI * 2;
+        const normalize = (a) => {
+            let n = a % TWO_PI;
+            if (n < -Math.PI) n += TWO_PI;
+            if (n > Math.PI) n -= TWO_PI;
+            return n;
+        };
+        const span = endAngle - startAngle;
+
+        this.drops.forEach((d) => {
+            if (d.killed) return;
+            const dx = d.x - pivotX;
+            const dy = d.y - pivotY;
+            const radius = Math.sqrt(dx * dx + dy * dy);
+            if (radius < innerRadius || radius > outerRadius) return;
+
+            // Signed angular difference from the band start, wrapped to [-PI, PI]
+            let rel = normalize(Math.atan2(dy, dx) - startAngle);
+            const normSpan = ((span % TWO_PI) + TWO_PI) % TWO_PI || TWO_PI;
+            if (rel < 0) rel += TWO_PI;
+            if (rel <= normSpan) {
+                d.killed = true;
+            }
+        });
+    }
 }

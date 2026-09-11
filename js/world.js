@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { RoadsideGenerator } from './roadside.js';
 
 /**
  * Procedural Road Path Generator
@@ -253,6 +254,9 @@ export class World {
         this.generatedChunks = new Map();
         this.chunksAhead = 4;
         this.chunksBehind = 2;
+
+        // City skyline, storefronts, neon signage, billboards & gas stations
+        this.roadside = new RoadsideGenerator();
 
         this._createMaterials();
     }
@@ -674,6 +678,11 @@ export class World {
         safeAddMesh(streetLampPoolGeos, this.streetLampPoolMat, g);
         safeAddMesh(puddleGeos, this.puddleMat, g);
         safeAddMesh(signGeos, this.signMat, g);
+
+        // Stream city skyline / storefronts / neon / billboards with this chunk
+        if (this.roadside) {
+            this.roadside.addChunkContent(idx, g, this.chunkSize);
+        }
 
         this.scene.add(g);
         this.generatedChunks.set(idx, g);
