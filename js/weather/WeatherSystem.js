@@ -22,6 +22,7 @@ import { VolumetricAtmosphericFog } from './lighting/VolumetricAtmosphericFog.js
  */
 export class WeatherSystem {
     constructor(scene, vehicle, world, composer, skyController = null) {
+        if (typeof window !== 'undefined') window.__LRA_TIREMIST_V2 = true; // retire legacy vehicle smoke/spray
         this.scene = scene;
         this.vehicle = vehicle;
         this.world = world;

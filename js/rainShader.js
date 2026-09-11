@@ -21,7 +21,11 @@ export const RainShader = {
         uWindVector: { value: new THREE.Vector2(0, 0) },
         uMinRefraction: { value: 0.002 },   // Soft gate: absorb micro-droplet noise
         uDropBlurAmount: { value: 0.005 },  // Extra small blur inside droplet area
-        uTextureShine: { value: new THREE.Texture() }, // Drop glint shine map
+        uTextureShine: { value: (() => { // valid 1×1 placeholder (avoids "no image data" warning)
+            const t = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
+            t.needsUpdate = true;
+            return t;
+        })() }, // Drop glint shine map
         uRenderShine: { value: false },     // Enable texture-driven glints
     },
     vertexShader: `

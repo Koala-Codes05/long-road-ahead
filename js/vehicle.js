@@ -198,10 +198,10 @@ export class Vehicle {
         ctx.fillRect(0, 0, 64, 64);
 
         const smokeMat = new THREE.PointsMaterial({
-            size: 2.8,
+            size: 1.7,
             map: new THREE.CanvasTexture(canvas),
             transparent: true,
-            opacity: 0.35,
+            opacity: 0.26,
             depthWrite: false,
             blending: THREE.NormalBlending,
         });
@@ -301,10 +301,10 @@ export class Vehicle {
         ctx.fillRect(0, 0, 64, 64);
 
         const sprayMat = new THREE.PointsMaterial({
-            size: 1.5,
+            size: 0.85,
             map: new THREE.CanvasTexture(canvas),
             transparent: true,
-            opacity: 0.35,
+            opacity: 0.22,
             depthWrite: false,
             blending: THREE.NormalBlending,
         });
@@ -320,6 +320,7 @@ export class Vehicle {
 
     _emitWaterSpray(x, z, intensity) {
         if (!this.waterSprayData) return;
+        if (this._mistV2Active()) return; // TireMist v2 handles wheel spray
         const data = this.waterSprayData[this.nextSprayIdx];
         const pos = this.waterSprayParticles.geometry.attributes.position.array;
         const idx = this.nextSprayIdx * 3;
@@ -455,7 +456,14 @@ export class Vehicle {
         return lightVector.normalize();
     }
 
+    _mistV2Active() {
+        return typeof window !== 'undefined' && window.__LRA_TIREMIST_V2;
+    }
+
     _emitSmoke(x, z, intensity) {
+        // Modular TireMist (weather/particles) renders tire smoke + spray with
+        // proper alpha sheets — stand down to avoid double-covering the screen.
+        if (this._mistV2Active()) return;
         const data = this.smokeData[this.nextSmokeIdx];
         const pos = this.smokeParticles.geometry.attributes.position.array;
         const idx = this.nextSmokeIdx * 3;
@@ -785,7 +793,10 @@ export class Vehicle {
             loader.load('assets/ferrari.glb', (gltf) => {
                 const carModel = gltf.scene;
                 carModel.scale.set(1.0, 1.0, 1.0);
-                carModel.position.set(0, 0, 0);
+                // Ground the model: wheel bottoms must touch y=0 (fixes "car floats in air")
+                const _bbox = new THREE.Box3().setFromObject(carModel);
+                if (isFinite(_bbox.min.y)) carModel.position.y = -_bbox.min.y + 0.005;
+                else carModel.position.set(0, 0, 0);
 
                 carModel.traverse((child) => {
                     if (child.isMesh) {

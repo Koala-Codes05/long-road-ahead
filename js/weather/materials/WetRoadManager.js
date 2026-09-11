@@ -38,6 +38,13 @@ export class WetRoadManager {
         roadMat.userData.uTextureMatrix = { value: this.planarReflection ? this.planarReflection.textureMatrix : new THREE.Matrix4() };
         roadMat.userData.uPlanarIntensity = { value: 0.80 };
 
+        // Road material now samples the planar map — make sure the reflector
+        // excludes every road mesh immediately (prevents feedback-loop frames).
+        if (this.planarReflection && typeof this.planarReflection._updateRoadMeshCache === 'function') {
+            this.planarReflection._roadMaterial = roadMat;
+            this.planarReflection._updateRoadMeshCache();
+        }
+
         // Inject dual-layer animated rain ripple normal map & planar reflection shader patches
         roadMat.onBeforeCompile = (shader) => {
             shader.uniforms.uTime = roadMat.userData.uTime;

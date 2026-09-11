@@ -293,7 +293,9 @@ export class World {
         this.roadMat = new THREE.MeshStandardMaterial({
             map: this.roadBaseColorMap,
             normalMap: this.roadNormalMap,
-            normalScale: new THREE.Vector2(0.8, 0.8),
+            normalScale: new THREE.Vector2(1.6, 1.6),
+            bumpMap: this.roadHeightMap,
+            bumpScale: 0.03,
             roughnessMap: this.roadRoughnessMap,
             roughness: 0.5,
             metalness: 0.25,
@@ -658,8 +660,9 @@ export class World {
             try {
                 const merged = mergeGeometries(geos, false);
                 if (merged && merged.isBufferGeometry) {
-                    const mesh = new THREE.Mesh(merged, mat);
-                    mesh.castShadow = castShadow;
+                const mesh = new THREE.Mesh(merged, mat);
+                mesh.name = 'fused_' + (mat === this.roadMat ? 'road' : (mat === this.puddleMat ? 'puddle' : 'scenery'));
+                mesh.castShadow = castShadow;
                     mesh.receiveShadow = receiveShadow;
                     targetGroup.add(mesh);
                 }
