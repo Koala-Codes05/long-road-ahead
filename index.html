@@ -12,15 +12,25 @@
 </head>
 <body>
     <canvas id="webgl-canvas"></canvas>
-    <!-- Loading Screen -->
+    <!-- Loading Screen (Driver: SOVEETA) -->
     <div id="loading-screen">
+        <div class="loader-backdrop"></div>
         <div class="loader-content">
             <h1 class="game-title">LONG ROAD AHEAD</h1>
+            <p class="loader-tagline">A SOVEETA CATIN BEALALIM JOINT</p>
             <p class="loader-subtitle" id="loader-status">INITIALIZING DRIVECLUB WEATHER ENGINE...</p>
             <div class="loader-bar" id="loader-bar-box">
                 <div class="loader-fill" id="loader-fill"></div>
             </div>
             <button id="start-btn" style="display: none;">CLICK TO DRIVE</button>
+        </div>
+        <div class="loader-driver-card">
+            <img id="loader-driver-img" src="assets/character/soveeta_portrait.png" alt="Soveeta Catin BealaLim">
+            <div class="ldc-info">
+                <span class="ldc-label">DRIVER</span>
+                <span class="ldc-name">SOVEETA</span>
+                <span class="ldc-role">"NEKO-01" · Drift Queen</span>
+            </div>
         </div>
     </div>
 
@@ -59,9 +69,20 @@
 
         <!-- Top Center: Fame / Score Star -->
         <div id="dc-top-center">
-            <span id="dc-score">3,512</span>
+            <span id="dc-score">0</span>
             <span class="dc-star">★</span>
+            <div id="dc-chain" style="display: none;"></div>
         </div>
+
+        <!-- Driver Chip (Soveeta live reactions) -->
+        <div id="driver-chip" style="display: none;">
+            <img id="driver-avatar" src="assets/character/soveeta_portrait.png" alt="SOVEETA">
+            <div class="driver-chip-text">
+                <span id="driver-chip-name">SOVEETA</span>
+                <span class="driver-chip-status">TAB: DRIVER FILE</span>
+            </div>
+        </div>
+        <div id="driver-quip"></div>
 
         <!-- Top Right: Lap Counter (Hidden) -->
         <div id="dc-top-right" style="display: none;">
@@ -119,13 +140,19 @@
         <!-- Vehicle Lighting & Camera Status Bar -->
         <div id="lights-hud-bar">
             <span id="badge-camera" class="light-badge active-neon">🎥 3RD CHASE</span>
-            <span id="badge-rainmode" class="light-badge active-neon">🌧️ 3RD CAMERA RAIN</span>
+            <span id="badge-rainmode" class="light-badge active-neon">🌧️ HYBRID (OLD + NEW)</span>
             <span id="badge-dissect" class="light-badge">🔧 DISSECT: OFF</span>
+            <span id="badge-garage" class="light-badge" title="Switch engine profile (T)">🏎 FERRARI 458 ITALIA</span>
+            <span id="badge-photo" class="light-badge" title="Photo Mode (P)">📷 PHOTO</span>
             <span id="badge-headlights" class="light-badge active-low">💡 LOW</span>
             <span id="badge-signal-left" class="light-badge">◄</span>
             <span id="badge-hazards" class="light-badge">▲</span>
             <span id="badge-signal-right" class="light-badge">►</span>
         </div>
+
+        <!-- Stunt / Fame Feedback Layer -->
+        <div id="popup-layer"></div>
+        <div id="fame-popup"></div>
 
         <!-- Bottom Left: Track Minimap -->
         <div id="dc-minimap">
@@ -164,16 +191,122 @@
             <span>S/↓</span> Brake &nbsp;
             <span>A/D</span> Steer &nbsp;
             <span>C/V</span> Camera &nbsp;
-            <span>R</span> Rain &nbsp;
+            <span>R</span> Rain Mode &nbsp;
             <span>M</span> Music &nbsp;
             <span>X</span> Dissect &nbsp;
             <span>SPACE</span> Drift &nbsp;
             <span>L-SHIFT</span> Nitro &nbsp;
+            <span>P</span> Photo Mode &nbsp;
+            <span>T</span> Garage &nbsp;
+            <span>TAB</span> Driver &nbsp;
             <span>L</span> Lights &nbsp;
             <span>H</span> Hazards &nbsp;
             <span>F2</span> Car &nbsp;
             <span>F3</span> Road &nbsp;
             <span>ESC</span> Studio
+        </div>
+    </div>
+
+    <!-- Driver Profile Panel (TAB / click chip) -->
+    <div id="driver-profile" aria-hidden="true">
+        <div class="dp-art-bg" id="driver-profile-art-bg"></div>
+        <div class="dp-card">
+            <button id="driver-profile-close" title="Close (TAB)">✕</button>
+            <div class="dp-left">
+                <img id="driver-profile-art" src="assets/character/soveeta_full.png" alt="Soveeta full body key art">
+                <canvas id="driver-3d-canvas" style="display:none"></canvas>
+                <div class="dp-view-toggle" id="driver-view-toggle">
+                    <button class="active" data-view="art">🖼 ART</button>
+                    <button data-view="3d">🧊 3D</button>
+                </div>
+            </div>
+            <div class="dp-right">
+                <span class="dp-kicker">DRIVER FILE // NIGHTRUNNERS</span>
+                <h2 id="driver-profile-name">SOVEETA CATIN BEALALIM</h2>
+                <p id="driver-profile-role"></p>
+                <div class="dp-outfit-block">
+                    <span class="dp-outfit-label">WARDROBE</span>
+                    <div class="dp-outfit-row" id="driver-outfit-row">
+                        <button data-outfit="armor" class="active">🦾 COMBAT RIG</button>
+                        <button data-outfit="street">🧶 STREET KNIT</button>
+                    </div>
+                    <span id="driver-outfit-desc">Porcelain exo test-pilot armor — the cat-ear HUD rig</span>
+                </div>
+                <div id="driver-profile-bio"></div>
+                <ul id="driver-stat-list" class="dp-stats"></ul>
+                <p class="dp-hint">She rides shotgun — keep the chain alive and she'll let you know it.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Photo Mode UI -->
+    <div id="photo-ui">
+        <div class="pm-panel">
+            <div class="pm-header">
+                <span>📷 PHOTO MODE</span>
+                <button id="pm-close" title="Exit (ESC / P)">✕</button>
+            </div>
+
+            <div class="pm-section">
+                <div class="pm-label">FILTER</div>
+                <div class="pm-btn-row" id="pm-filter-buttons">
+                    <button data-filter="none" class="active">NONE</button>
+                    <button data-filter="neon">NEON</button>
+                    <button data-filter="golden">GOLDEN</button>
+                    <button data-filter="noire">NOIRE</button>
+                    <button data-filter="vhs">VHS</button>
+                </div>
+            </div>
+
+            <div class="pm-section">
+                <div class="pm-label">EXPOSURE <span id="pm-exposure-val">1.00</span></div>
+                <input type="range" id="pm-exposure" min="0.30" max="2.00" step="0.01" value="1.00">
+                <div class="pm-label">FIELD OF VIEW <span id="pm-fov-val">55.00</span></div>
+                <input type="range" id="pm-fov" min="20" max="100" step="1" value="55">
+                <div class="pm-label">BLOOM <span id="pm-bloom-val">0.45</span></div>
+                <input type="range" id="pm-bloom" min="0" max="1.5" step="0.01" value="0.45">
+                <div class="pm-label">FILM GRAIN <span id="pm-grain-val">0.055</span></div>
+                <input type="range" id="pm-grain" min="0" max="0.4" step="0.005" value="0.055">
+            </div>
+
+            <div class="pm-section">
+                <div class="pm-label">RESOLUTION · FORMAT
+                    <select id="pm-format">
+                        <option value="png" selected>PNG</option>
+                        <option value="jpeg">JPEG</option>
+                    </select>
+                </div>
+                <div class="pm-btn-row" id="pm-res-buttons">
+                    <button data-res="native">VIEWPORT</button>
+                    <button data-res="2k">2K</button>
+                    <button data-res="4k" class="active">4K</button>
+                    <button data-res="8k">8K</button>
+                    <button data-res="16k">16K</button>
+                </div>
+            </div>
+
+            <div class="pm-actions">
+                <button id="pm-render-btn">📷 RENDER <small>(viewport)</small></button>
+                <button id="pm-superres-btn">⚡ SUPER-RES RENDER <small>(tiled)</small></button>
+            </div>
+
+            <div class="pm-status" id="pm-status">Press P or ESC to exit</div>
+
+            <div class="pm-hint">
+                DRAG orbit · WHEEL zoom · Q/E height · R reset · ENTER shoot<br>
+                Super-Res renders the frozen frame tile-by-tile at up to 16K and stitches it — works on any GPU.
+            </div>
+        </div>
+        <div id="pm-gallery"></div>
+    </div>
+
+    <!-- Tiled render progress modal -->
+    <div id="pm-progress">
+        <div class="pm-progress-card">
+            <div class="pm-label">SUPER-RESOLUTION TILE RENDER</div>
+            <div class="pm-progress-track"><div id="pm-progress-bar"></div></div>
+            <div id="pm-progress-label">Preparing…</div>
+            <button id="pm-cancel">CANCEL</button>
         </div>
     </div>
 

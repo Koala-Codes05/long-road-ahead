@@ -68,6 +68,17 @@ export class WeatherSystem {
         );
     }
 
+    /** Re-attach the windshield pass to a freshly created composer (WebGL recovery). */
+    reattachComposer(composer) {
+        this.composer = composer;
+        if (this.windshieldPass) {
+            this.windshieldPass.composer = composer;
+            if (composer && this.rainPass) {
+                composer.addPass(this.rainPass);
+            }
+        }
+    }
+
     setRainMode(index = null) {
         if (index === null) {
             this.rainModeIndex = (this.rainModeIndex + 1) % this.rainModes.length;
@@ -84,9 +95,20 @@ export class WeatherSystem {
         return this.rainModeNames[this.rainModeIndex] || 'HYBRID (OLD + NEW)';
     }
 
+    /**
+     * Apply a weather preset to every weather subsystem.
+     *
+     * NOTE: Scene lighting, fog color/density, sky dome and renderer exposure
+     * are owned by main.js `applyWeatherEnvironment()` (single authority —
+     * the old duplicating light-traversal block was removed during the
+     * weather-engine consolidation). This method only drives the modular
+     * weather stack: windshield refraction, lightning, wet-road optics,
+     * wiper physics, fog volume, clouds and vehicle clearcoat wetness.
+     */
     setWeather(type) {
         this.weatherType = type;
         this._gltfMatUpdated = false;
+
         this.windshieldPass.setWeatherType(type);
         this.lightningSystem.setWeatherType(type);
         this.wetRoadManager.updatePreset(type);
@@ -100,80 +122,34 @@ export class WeatherSystem {
             this.cloudSystem.setWeather(type);
         }
 
-        // Dynamic Atmosphere, Scene Lighting & Fog Tuning per Preset
-        let lightMul = 1.0;
+        // Vehicle clearcoat / paint response per preset
         let vehicleEnvIntensity = 1.0;
         let vehiclePaintDarkening = 1.0;
         let coolFillInt = 2.2;
         let warmBounceInt = 1.8;
 
-        if (this.scene) {
-            if (type === 0) { // STORM
-                this.scene.background.setHex(0x090f1a);
-                if (this.scene.fog) {
-                    this.scene.fog.color.setHex(0x090f1a);
-                    this.scene.fog.density = 0.0068;
-                }
-                lightMul = 0.35;             // Dim global scene lighting for heavy storm
-                vehicleEnvIntensity = 0.75;   // Preserve rich car body specular reflection highlights
-                vehiclePaintDarkening = 0.88; // Keep Ferrari red paint readable against dark wet asphalt
-                coolFillInt = 2.5;            // Slightly boosted cool top/front fill in storm
-                warmBounceInt = 2.1;          // Boosted warm road bounce to separate sills from road
-            } else if (this.weatherType === 1) { // DRIZZLE
-                this.scene.background.setHex(0x0c1424);
-                if (this.scene.fog) {
-                    this.scene.fog.color.setHex(0x0c1424);
-                    this.scene.fog.density = 0.0050;
-                }
-                lightMul = 0.60;
-                vehicleEnvIntensity = 0.85;
-                vehiclePaintDarkening = 0.92;
-                coolFillInt = 2.2;
-                warmBounceInt = 1.8;
-            } else if (this.weatherType === 2) { // CLOUDY DAY (DAYTIME STORM)
-                this.scene.background.setHex(0x8093a4);
-                if (this.scene.fog) {
-                    this.scene.fog.color.setHex(0x8093a4);
-                    this.scene.fog.density = 0.0050;
-                }
-                lightMul = 1.6;
-                vehicleEnvIntensity = 1.25;
-                vehiclePaintDarkening = 0.95;
-                coolFillInt = 1.8;
-                warmBounceInt = 1.4;
-            } else { // CLEAR
-                this.scene.background.setHex(0x04060c);
-                if (this.scene.fog) {
-                    this.scene.fog.color.setHex(0x04060c);
-                    this.scene.fog.density = 0.0030;
-                }
-                lightMul = 1.0;
-                vehicleEnvIntensity = 1.0;
-                vehiclePaintDarkening = 1.0;
-                coolFillInt = 2.0;
-                warmBounceInt = 1.6;
-            }
-
-            // Scale global scene lights (Ambient, Hemisphere, Directional Moonlight)
-            this.scene.traverse((obj) => {
-                if (obj.isLight) {
-                    // Skip headlights and taillights
-                    if (obj.isSpotLight || obj.isPointLight) return;
-
-                    if (!obj.userData.baseIntensity) {
-                        obj.userData.baseIntensity = obj.intensity;
-                    }
-                    obj.intensity = obj.userData.baseIntensity * lightMul;
-                }
-            });
-
-            // Adjust Three.js Environment Map Reflection Intensity if supported
-            if ('environmentIntensity' in this.scene) {
-                this.scene.environmentIntensity = vehicleEnvIntensity;
-            }
+        if (type === 0) {       // STORM
+            vehicleEnvIntensity = 0.75; // Preserve rich car body specular reflection highlights
+            vehiclePaintDarkening = 0.88;
+            coolFillInt = 2.5;
+            warmBounceInt = 2.1;
+        } else if (type === 1) { // DRIZZLE
+            vehicleEnvIntensity = 0.85;
+            vehiclePaintDarkening = 0.92;
+            coolFillInt = 2.2;
+            warmBounceInt = 1.8;
+        } else if (type === 2) { // CLOUDY DAY
+            vehicleEnvIntensity = 1.25;
+            vehiclePaintDarkening = 0.95;
+            coolFillInt = 1.8;
+            warmBounceInt = 1.4;
+        } else {                 // CLEAR
+            vehicleEnvIntensity = 1.0;
+            vehiclePaintDarkening = 1.0;
+            coolFillInt = 2.0;
+            warmBounceInt = 1.6;
         }
 
-        // Adjust Vehicle Materials (Body paint, carbon, chassis) & Localized Fill Lights
         this._updateVehicleMaterials(vehicleEnvIntensity, vehiclePaintDarkening, coolFillInt, warmBounceInt);
 
         // Update Sky Controller if present

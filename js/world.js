@@ -6,8 +6,7 @@ import {
     createPotholeAsphaltTextures,
     createSidewalkTileTexture
 } from './weather/textures/ProceduralTextures.js';
-import { RoadsideGenerator } from './building/RoadsideGenerator.js';
-
+import { RoadsideGenerator } from './roadside.js';
 
 /**
  * Procedural Road Path Generator
@@ -267,8 +266,7 @@ export class World {
         this.chunksAhead = 4;
         this.chunksBehind = 2;
 
-        // The road owns the city: roadside buildings are generated per chunk,
-        // in the road's local frame, and stream in/out with the chunk itself.
+        // City skyline, storefronts, neon signage, billboards & gas stations
         this.roadside = new RoadsideGenerator();
 
         // Route switching state (highway = procedural road, city = avenue asset overlay)
@@ -278,7 +276,6 @@ export class World {
         this.routeAssets.visible = false;
         this.scene.add(this.routeAssets);
         this.cityRoadLoad = null;
-
         this._createMaterials();
     }
 
@@ -854,9 +851,10 @@ export class World {
         safeAddMesh(puddleGeos, this.puddleMat, g);
         safeAddMesh(signGeos, this.signMat, g);
 
-        // City block for this chunk: frontage → large blocks → background towers.
-        // Fully deterministic per chunk index, disposed with the chunk.
-        g.add(this.roadside.generateChunk(idx, zStart, this.chunkSize, isCity));
+        // Stream city skyline / storefronts / neon / billboards with this chunk
+        if (this.roadside) {
+            this.roadside.addChunkContent(idx, g, this.chunkSize);
+        }
 
         this.scene.add(g);
         this.generatedChunks.set(idx, g);

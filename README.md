@@ -30,19 +30,26 @@ Open **http://localhost:3000** in your browser (Chrome/Edge/Firefox recommended)
 | `D` / `→` | Steer Right |
 | `Space` | Handbrake (Drift) |
 | `Shift` | Nitro Boost |
+| `P` | **Photo Mode** — free camera + tiled 2K/4K/8K/16K super-resolution capture |
+| `TAB` | **Driver dossier** — meet Soveeta |
+| `T` | **Garage** — switch engine profile (458 V8 / MK-IV 2JZ / V10 RS) |
+| `R` | Rain FX mode |
+| `C` / `V` | Camera view cycle |
+| `L` | Headlights | `H` | Hazards | `Q`/`E` | Signals |
 
 ---
 
-## ✨ Prototype Features
+## ✨ Features
 
-- 🌃 **Infinite procedural city** — Chunk-based streaming, generates as you drive
-- 🏗️ **Dynamic buildings** — Canvas-texture windows, neon accents, rooftop lights
-- 🚗 **Arcade car physics** — Acceleration, braking, drift (handbrake), nitro
-- 🎥 **Chase camera** — Smooth follow with speed-responsive FOV & distance
-- 💡 **Dynamic lighting** — Point-light pool, headlights, street lamps, underglow
-- 🌟 **Post-processing** — Unreal Bloom, ACES Filmic tone mapping
-- 🌙 **Night atmosphere** — Sky gradient shader, exponential fog
-- 📊 **HUD** — Speedometer, tachometer, gear indicator
+- 🦊 **Soveeta Catin BealaLim** — photorealistic driver character: HUD chip, live quips, voice lines, dossier (TAB) with wardrobe switcher (Combat Rig ⇄ Street Knit) and an **orbitable 3D model turntable** (procedural GLB; drop in `soveeta_3d_aaa.glb` to hot-swap a AAA model), in-world hero billboard
+- 📷 **Photo Mode** — frozen-time camera suite with LUT filters and a **tiled super-resolution renderer** (2K/4K/8K/16K PNG/JPEG exports + session gallery)
+- 🌃 **Infinite procedural road** — chunk-based streaming highway, technical section, mountain passes, city loop
+- 🏙️ **Night city atmosphere** — emissive storefronts & skyscrapers, neon sign atlas, NFS-style billboards, green-lit gas station
+- 🌧️ **Modular weather engine** — Driveclub-style windshield droplets, auto wipers, 3D rain volume, road impact splashes, planar wet-road reflections, animated rain ripples
+- 🔊 **Multi-vehicle audio** — per-car pitch/RPM/exhaust profiles (458 V8 scream · 2JZ twin-turbo growl · V10 wail)
+- 🏆 **Feedback loop** — drift-chain fame scoring, stunt popups (burnout/donut/hard-turn), score multipliers, smoke & squeal rewards
+- 🚗 **Arcade car physics** — Pacejka-inspired drift model, drifting donuts, burnouts, nitro
+- 🌟 **Photoreal post stack** — half-res Unreal Bloom, PCFSoft 2K shadows, cinematic grade, fisheye nitro cam, 35 mm grain
 
 ---
 

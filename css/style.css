@@ -909,3 +909,505 @@ canvas {
     letter-spacing: 0.18em;
 }
 
+/* ============================================
+   SOVEETA — DRIVER CHARACTER UI
+   ============================================ */
+
+.loader-backdrop {
+    position: absolute;
+    inset: 0;
+    background: url('../assets/character/soveeta_garage.jpg') center/cover no-repeat;
+    opacity: 0.42;
+    filter: saturate(1.15) brightness(0.8);
+    z-index: 0;
+}
+
+.loader-backdrop::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(10,10,26,0.86) 0%, rgba(26,10,46,0.55) 55%, rgba(10,26,46,0.86) 100%);
+}
+
+#loading-screen .loader-content { position: relative; z-index: 2; }
+
+.loader-tagline {
+    font-family: 'Rajdhani', sans-serif;
+    letter-spacing: 6px;
+    font-size: 12px;
+    color: #37c8ff;
+    text-shadow: 0 0 14px rgba(55, 200, 255, 0.7);
+    margin-bottom: 26px;
+}
+
+.loader-driver-card {
+    position: absolute;
+    left: 38px;
+    bottom: 38px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    z-index: 2;
+    background: rgba(8, 12, 22, 0.75);
+    border: 1px solid rgba(255, 45, 149, 0.45);
+    border-left: 4px solid #ff2d95;
+    padding: 12px 22px 12px 12px;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 8px 40px rgba(255, 45, 149, 0.25), 0 0 60px rgba(0,0,0,0.6);
+}
+
+.loader-driver-card img {
+    width: 86px;
+    height: 86px;
+    object-fit: cover;
+    object-position: top center;
+    border: 1px solid rgba(255,255,255,0.25);
+}
+
+.ldc-info { display: flex; flex-direction: column; gap: 3px; }
+.ldc-label { font-family: 'Orbitron'; font-size: 10px; letter-spacing: 4px; color: #8fa3bf; }
+.ldc-name { font-family: 'Orbitron'; font-size: 22px; font-weight: 900; color: #fff; letter-spacing: 3px; text-shadow: 0 0 18px rgba(255,45,149,0.8); }
+.ldc-role { font-family: 'Rajdhani'; font-size: 13px; font-weight: 600; color: #ff9ecb; letter-spacing: 1px; }
+
+/* --- HUD driver chip + quips --- */
+#driver-chip {
+    position: fixed;
+    top: 86px;
+    left: 22px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(8, 12, 22, 0.72);
+    border: 1px solid rgba(255, 45, 149, 0.4);
+    border-radius: 40px;
+    padding: 6px 16px 6px 6px;
+    z-index: 40;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    backdrop-filter: blur(6px);
+}
+#driver-chip:hover { transform: scale(1.04); box-shadow: 0 0 24px rgba(255,45,149,0.45); }
+#driver-chip img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; object-position: top center; border: 1px solid #ff2d95; }
+.driver-chip-text { display: flex; flex-direction: column; }
+#driver-chip-name { font-family: 'Orbitron'; font-size: 13px; font-weight: 900; letter-spacing: 2px; color: #fff; }
+.driver-chip-status { font-family: 'Rajdhani'; font-size: 10px; font-weight: 600; letter-spacing: 1.5px; color: #8fa3bf; }
+
+#driver-quip {
+    position: fixed;
+    top: 142px;
+    left: 30px;
+    max-width: 320px;
+    font-family: 'Rajdhani';
+    font-size: 15px;
+    font-weight: 600;
+    color: #ffe9f4;
+    background: rgba(18, 8, 20, 0.78);
+    border-left: 3px solid #ff2d95;
+    padding: 8px 14px;
+    border-radius: 4px;
+    z-index: 40;
+    opacity: 0;
+    transform: translateX(-14px);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    pointer-events: none;
+}
+#driver-quip.visible { opacity: 1; transform: translateX(0); }
+
+/* --- Drift chain counter under fame star --- */
+#dc-chain {
+    margin-top: 4px;
+    font-family: 'Orbitron';
+    font-size: 13px;
+    font-weight: 700;
+    color: #ffb937;
+    text-shadow: 0 0 12px rgba(255, 185, 55, 0.8);
+    letter-spacing: 1px;
+    animation: chainPulse 0.5s ease infinite alternate;
+}
+#dc-chain span { color: #ff2d95; }
+@keyframes chainPulse { from { transform: scale(1); } to { transform: scale(1.06); } }
+
+/* --- Driver profile dossier --- */
+#driver-profile {
+    position: fixed; inset: 0; z-index: 300;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.35s ease;
+}
+#driver-profile.open { opacity: 1; pointer-events: auto; }
+.dp-art-bg {
+    position: absolute; inset: 0;
+    background: center/cover no-repeat;
+    filter: blur(14px) brightness(0.35) saturate(1.2);
+}
+.dp-card {
+    position: relative;
+    display: flex;
+    max-width: 980px; width: 92%; max-height: 82vh;
+    background: rgba(10, 14, 24, 0.88);
+    border: 1px solid rgba(255, 45, 149, 0.45);
+    box-shadow: 0 30px 80px rgba(0,0,0,0.8), 0 0 60px rgba(255,45,149,0.15);
+    backdrop-filter: blur(14px);
+    overflow: hidden;
+}
+.dp-left { flex: 0 0 42%; min-height: 560px; overflow: hidden; position: relative; }
+.dp-left img { width: 100%; height: 100%; object-fit: cover; object-position: center top; }
+.dp-right { flex: 1; padding: 34px 36px; overflow-y: auto; }
+.dp-kicker { font-family: 'Orbitron'; font-size: 10px; letter-spacing: 4px; color: #37c8ff; }
+.dp-right h2 {
+    font-family: 'Orbitron'; font-size: 26px; font-weight: 900; color: #fff;
+    letter-spacing: 2px; margin: 10px 0 4px;
+    text-shadow: 0 0 20px rgba(255,45,149,0.6);
+}
+#driver-profile-role { font-family: 'Rajdhani'; font-weight: 600; font-size: 15px; color: #ff9ecb; margin-bottom: 16px; }
+#driver-profile-bio p { font-size: 14px; line-height: 1.65; color: #c7d3e8; margin-bottom: 10px; font-weight: 500; }
+.dp-stats { list-style: none; margin: 18px 0; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.dp-stats li {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-family: 'Orbitron'; font-size: 11px; letter-spacing: 1.5px; color: #8fa3bf;
+    border: 1px solid rgba(255,255,255,0.12); padding: 10px 14px; background: rgba(255,255,255,0.03);
+}
+.dp-stats b { color: #ffd037; font-size: 14px; }
+.dp-hint { font-family: 'Rajdhani'; font-style: italic; color: #7d8ca3; font-size: 13px; margin-top: 6px; }
+#driver-profile-close {
+    position: absolute; top: 14px; right: 14px; z-index: 2;
+    background: rgba(255,45,149,0.15); color: #ff9ecb; border: 1px solid rgba(255,45,149,0.5);
+    width: 36px; height: 36px; font-size: 16px; cursor: pointer; border-radius: 50%;
+}
+#driver-profile-close:hover { background: rgba(255,45,149,0.4); color:#fff; }
+
+/* ============================================
+   FEEDBACK — STUNT POPUPS & FAME FLASH
+   ============================================ */
+
+#popup-layer {
+    position: fixed;
+    top: 22%;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    pointer-events: none;
+}
+
+.stunt-popup {
+    font-family: 'Orbitron';
+    font-size: 22px;
+    font-weight: 900;
+    letter-spacing: 3px;
+    color: #fff;
+    padding: 10px 26px;
+    background: rgba(10, 14, 24, 0.85);
+    border: 1px solid rgba(255, 185, 55, 0.6);
+    border-left: 5px solid #ffb937;
+    opacity: 0;
+    transform: translateY(-18px) scale(0.92);
+    transition: all 0.22s cubic-bezier(0.17, 0.89, 0.35, 1.42);
+    text-shadow: 0 0 14px rgba(255,185,55,0.8);
+}
+.stunt-popup.show { opacity: 1; transform: translateY(0) scale(1); }
+.stunt-popup.fade { opacity: 0; transform: translateY(-12px) scale(0.96); transition: all 0.45s ease; }
+.stunt-popup.stunt-best { border-color: #ff2d95; border-left-color: #ff2d95; text-shadow: 0 0 16px rgba(255,45,149,0.9); }
+.stunt-popup.stunt-bank { border-color: #37c8ff; border-left-color: #37c8ff; text-shadow: 0 0 16px rgba(55,200,255,0.9); }
+
+#fame-popup {
+    position: fixed;
+    top: 33%;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 61;
+    display: flex; flex-direction: column; align-items: center;
+    pointer-events: none;
+    opacity: 0;
+}
+#fame-popup.show { animation: fameFlash 1.6s ease forwards; }
+#fame-popup .fp-points {
+    font-family: 'Orbitron'; font-size: 46px; font-weight: 900; color: #ffd037;
+    text-shadow: 0 0 24px rgba(255, 208, 55, 0.95), 0 4px 30px rgba(0,0,0,0.7);
+    letter-spacing: 2px;
+}
+#fame-popup .fp-label {
+    font-family: 'Orbitron'; font-size: 17px; font-weight: 700; letter-spacing: 5px; color: #fff;
+    text-shadow: 0 0 14px rgba(255,255,255,0.6);
+}
+#fame-popup .fp-label em { font-style: normal; color: #ff2d95; }
+@keyframes fameFlash {
+    0% { opacity: 0; transform: translateX(-50%) scale(0.7); }
+    12% { opacity: 1; transform: translateX(-50%) scale(1.08); }
+    22% { transform: translateX(-50%) scale(1.0); }
+    75% { opacity: 1; }
+    100% { opacity: 0; transform: translateX(-50%) translateY(-26px) scale(1.0); }
+}
+
+/* ============================================
+   PHOTO MODE
+   ============================================ */
+
+body.photo-mode #hud,
+body.photo-mode #speed-overlay {
+    display: none !important;
+}
+
+#photo-ui {
+    position: fixed; inset: 0; z-index: 200;
+    pointer-events: none;
+    opacity: 0; visibility: hidden;
+    transition: opacity 0.3s ease;
+}
+#photo-ui.open { opacity: 1; visibility: visible; }
+
+.pm-panel {
+    position: absolute;
+    top: 50%; right: 26px;
+    transform: translateY(-50%);
+    width: 320px;
+    max-height: 92vh;
+    overflow-y: auto;
+    background: rgba(8, 12, 22, 0.86);
+    border: 1px solid rgba(55, 200, 255, 0.35);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.75), 0 0 44px rgba(55,200,255,0.12);
+    backdrop-filter: blur(12px);
+    padding: 18px 18px 14px;
+    pointer-events: auto;
+}
+
+.pm-header {
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: 'Orbitron'; font-size: 15px; font-weight: 900; letter-spacing: 3px; color: #fff;
+    margin-bottom: 14px;
+    text-shadow: 0 0 14px rgba(55,200,255,0.7);
+}
+#pm-close {
+    background: none; border: 1px solid rgba(255,255,255,0.3); color: #9fb2cc;
+    width: 26px; height: 26px; border-radius: 50%; cursor: pointer; font-size: 12px;
+}
+#pm-close:hover { border-color: #ff2d95; color: #ff9ecb; }
+
+.pm-section { margin-bottom: 14px; }
+.pm-label {
+    font-family: 'Orbitron'; font-size: 10px; font-weight: 700; letter-spacing: 2.5px; color: #8fa3bf;
+    margin: 8px 0 6px;
+    display: flex; justify-content: space-between; align-items: center;
+}
+.pm-label span { color: #37c8ff; font-size: 11px; }
+.pm-label select {
+    background: rgba(255,255,255,0.08); color: #fff; border: 1px solid rgba(55,200,255,0.4);
+    font-family: 'Orbitron'; font-size: 11px; padding: 3px 6px; cursor: pointer;
+}
+
+.pm-btn-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.pm-btn-row button {
+    flex: 1 1 auto;
+    font-family: 'Orbitron'; font-size: 10px; font-weight: 700; letter-spacing: 1px;
+    padding: 7px 4px; cursor: pointer;
+    background: rgba(255,255,255,0.05); color: #9fb2cc;
+    border: 1px solid rgba(255,255,255,0.15);
+    transition: all 0.15s ease;
+}
+.pm-btn-row button:hover { border-color: #37c8ff; color: #fff; }
+.pm-btn-row button.active {
+    background: rgba(55, 200, 255, 0.16); color: #37c8ff;
+    border-color: #37c8ff; box-shadow: 0 0 12px rgba(55,200,255,0.35);
+}
+
+input[type="range"] {
+    width: 100%;
+    accent-color: #37c8ff;
+    cursor: pointer;
+    margin: 2px 0 8px;
+}
+
+.pm-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.pm-actions button {
+    font-family: 'Orbitron'; font-size: 12px; font-weight: 900; letter-spacing: 2px;
+    padding: 12px; cursor: pointer; color: #fff;
+    background: linear-gradient(135deg, rgba(255,45,149,0.75), rgba(120,20,80,0.75));
+    border: 1px solid #ff2d95;
+    box-shadow: 0 4px 20px rgba(255,45,149,0.35);
+    transition: all 0.15s ease;
+}
+.pm-actions button small { font-weight: 400; letter-spacing: 1px; opacity: 0.8; }
+.pm-actions button:hover { filter: brightness(1.25); transform: translateY(-1px); }
+.pm-actions #pm-superres-btn {
+    background: linear-gradient(135deg, rgba(0,140,190,0.8), rgba(20,60,120,0.8));
+    border-color: #37c8ff;
+    box-shadow: 0 4px 20px rgba(55,200,255,0.35);
+}
+
+.pm-status {
+    margin-top: 10px;
+    font-family: 'Rajdhani'; font-size: 12.5px; font-weight: 600; color: #ffd037;
+    min-height: 16px;
+}
+.pm-hint {
+    margin-top: 8px; padding-top: 10px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    font-family: 'Rajdhani'; font-size: 11.5px; line-height: 1.5; color: #7d8ca3;
+}
+
+#pm-gallery {
+    position: absolute;
+    left: 26px; bottom: 26px;
+    display: flex; gap: 10px; flex-wrap: wrap;
+    max-width: 56vw;
+    pointer-events: auto;
+}
+.pm-shot {
+    display: flex; flex-direction: column; gap: 4px;
+    width: 120px; text-decoration: none;
+    border: 1px solid rgba(55,200,255,0.4);
+    background: rgba(8,12,22,0.85); padding: 5px;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.6);
+    animation: shotIn 0.35s ease;
+}
+@keyframes shotIn { from { transform: translateY(20px); opacity: 0; } to { transform: none; opacity: 1; } }
+.pm-shot img { width: 100%; height: 66px; object-fit: cover; display: block; }
+.pm-shot span {
+    font-family: 'Orbitron'; font-size: 8.5px; letter-spacing: 1px; color: #37c8ff;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+#pm-progress {
+    position: fixed; inset: 0; z-index: 400;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(4, 8, 14, 0.86);
+    backdrop-filter: blur(4px);
+    opacity: 0; visibility: hidden;
+    transition: opacity 0.25s ease;
+}
+#pm-progress.open { opacity: 1; visibility: visible; }
+.pm-progress-card {
+    width: 460px; max-width: 88vw;
+    background: rgba(10, 14, 24, 0.95);
+    border: 1px solid rgba(55,200,255,0.5);
+    padding: 26px 28px;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.85), 0 0 50px rgba(55,200,255,0.2);
+    text-align: center;
+}
+.pm-progress-track {
+    height: 10px; background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    margin: 14px 0 12px; overflow: hidden;
+}
+#pm-progress-bar {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, #37c8ff, #ff2d95);
+    box-shadow: 0 0 14px rgba(55,200,255,0.8);
+    transition: width 0.15s ease;
+}
+#pm-progress-label { font-family: 'Rajdhani'; font-size: 14px; font-weight: 600; color: #c7d3e8; margin-bottom: 16px; }
+#pm-cancel {
+    font-family: 'Orbitron'; font-size: 11px; font-weight: 700; letter-spacing: 2px;
+    padding: 9px 26px; cursor: pointer;
+    background: rgba(255,60,60,0.12); color: #ff8080; border: 1px solid rgba(255,90,90,0.5);
+}
+#pm-cancel:hover { background: rgba(255,60,60,0.3); color: #fff; }
+
+/* Photo-mode framing guides */
+body.photo-mode #webgl-canvas { cursor: none; }
+
+/* Center the fame badge + drift chain text block */
+#dc-top-center { text-align: center; }
+
+/* --- Driver dossier wardrobe selector --- */
+.dp-outfit-block {
+    margin: 4px 0 16px;
+    padding: 12px 14px;
+    border: 1px solid rgba(55, 200, 255, 0.22);
+    background: rgba(55, 200, 255, 0.04);
+}
+.dp-outfit-label {
+    display: block;
+    font-family: 'Orbitron';
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    color: #37c8ff;
+    margin-bottom: 8px;
+}
+.dp-outfit-row { display: flex; gap: 8px; margin-bottom: 8px; }
+.dp-outfit-row button {
+    flex: 1;
+    font-family: 'Orbitron';
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    padding: 9px 6px;
+    cursor: pointer;
+    color: #9fb2cc;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.15);
+    transition: all 0.15s ease;
+}
+.dp-outfit-row button:hover { border-color: #ff2d95; color: #fff; }
+.dp-outfit-row button.active {
+    color: #ff9ecb;
+    border-color: #ff2d95;
+    background: rgba(255,45,149,0.14);
+    box-shadow: 0 0 14px rgba(255,45,149,0.35);
+}
+#driver-outfit-desc {
+    font-family: 'Rajdhani';
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #8fa3bf;
+    font-style: italic;
+}
+
+/* --- Dossier art / 3D view toggle --- */
+.dp-view-toggle {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: flex;
+    gap: 6px;
+    z-index: 3;
+}
+.dp-view-toggle button {
+    font-family: 'Orbitron';
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    padding: 6px 10px;
+    cursor: pointer;
+    color: #9fb2cc;
+    background: rgba(10, 14, 24, 0.72);
+    border: 1px solid rgba(255,255,255,0.16);
+    backdrop-filter: blur(6px);
+    transition: all 0.15s ease;
+}
+.dp-view-toggle button:hover { border-color: #ff2d95; color: #fff; }
+.dp-view-toggle button.active {
+    color: #9ef;
+    border-color: #37c8ff;
+    background: rgba(55,200,255,0.16);
+    box-shadow: 0 0 12px rgba(55,200,255,0.35);
+}
+#driver-3d-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+    cursor: grab;
+}
+#driver-3d-canvas:active { cursor: grabbing; }
+.v3d-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Orbitron';
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: #37c8ff;
+    text-shadow: 0 0 10px rgba(55,200,255,0.6);
+    z-index: 2;
+    animation: v3dpulse 1.2s ease-in-out infinite;
+    pointer-events: none;
+}
+@keyframes v3dpulse { 50% { opacity: 0.45; } }
