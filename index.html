@@ -25,7 +25,7 @@
             <button id="start-btn" style="display: none;">CLICK TO DRIVE</button>
         </div>
         <div class="loader-driver-card">
-            <img src="assets/character/soveeta_portrait.png" alt="Soveeta Catin BealaLim">
+            <img id="loader-driver-img" src="assets/character/soveeta_portrait.png" alt="Soveeta Catin BealaLim">
             <div class="ldc-info">
                 <span class="ldc-label">DRIVER</span>
                 <span class="ldc-name">SOVEETA</span>
@@ -169,6 +169,14 @@
                 <span class="dp-kicker">DRIVER FILE // NIGHTRUNNERS</span>
                 <h2 id="driver-profile-name">SOVEETA CATIN BEALALIM</h2>
                 <p id="driver-profile-role"></p>
+                <div class="dp-outfit-block">
+                    <span class="dp-outfit-label">WARDROBE</span>
+                    <div class="dp-outfit-row" id="driver-outfit-row">
+                        <button data-outfit="armor" class="active">🦾 COMBAT RIG</button>
+                        <button data-outfit="street">🧶 STREET KNIT</button>
+                    </div>
+                    <span id="driver-outfit-desc">Porcelain exo test-pilot armor — the cat-ear HUD rig</span>
+                </div>
                 <div id="driver-profile-bio"></div>
                 <ul id="driver-stat-list" class="dp-stats"></ul>
                 <p class="dp-hint">She rides shotgun — keep the chain alive and she'll let you know it.</p>

@@ -6,22 +6,28 @@ Soveeta is the playable driver character of Long Road Ahead, built from the
 concept images supplied for this sprint and re-rendered as fully
 **photorealistic key art**.
 
-## Design
+## Design — Wardrobe (switch in the driver dossier, TAB)
 
-| Element | Detail |
-|---|---|
-| Headgear | White porcelain-shell helmet rig with signature cat-ear antenna fins |
-| Suit | Gloss black tech bodysuit with matte-white ceramic armor plates, fine mechanical seams |
-| Lower | Black pleated armor skirt, crimson-red thigh-high stockings, white armored heel boots with brass ring joints |
-| Weapon | Katana, carried low at her side |
-| Persona | Ex-Kaido-Works test pilot; outlaw street-racer; "NEKO-01" |
+| Outfit | Detail | Source reference |
+|---|---|---|
+| 🦾 **COMBAT RIG** (default) | White porcelain-shell cat-ear helmet rig, gloss black tech bodysuit with ceramic armor plates, pleated armor skirt, crimson thigh-high stockings, armored heel boots with brass joints, katana | Cat-ear armor concept art |
+| 🧶 **STREET KNIT** | White chunky rib-knit cropped sweater (gold half-zip, bishop sleeves, harness straps with gold buckles), glossy black latex bodysuit with white V accents, glossy heeled boots, black satin bow ponytail | Outfit reference image |
+
+The choice persists via `localStorage` and swaps her HUD chip avatar,
+dossier art and loading driver card instantly. Her in-world hero billboard
+stays in the COMBAT RIG.
+
+Photoreal identity (both outfits): the photorealism face reference — natural
+skin, dark brown ponytail, dark eyes, calm confidence.
 
 ## Assets
 
 | File | Used for |
 |---|---|
-| `assets/character/soveeta_portrait.png` | HUD driver chip avatar, loading driver card |
-| `assets/character/soveeta_full.png` | Driver dossier full-body art, in-world hero billboard |
+| `assets/character/soveeta_portrait.png` | HUD avatar / loading card (Combat Rig) |
+| `assets/character/soveeta_full.png` | Dossier art (Combat Rig), in-world hero billboard |
+| `assets/character/soveeta_street_portrait.png` | HUD avatar / loading card (Street Knit) |
+| `assets/character/soveeta_street_full.png` | Dossier art (Street Knit) |
 | `assets/character/soveeta_garage.jpg` | Loading screen backdrop, dossier blurred backdrop |
 | `assets/Sounds/soveeta/*.wav` | Her voice line bank (effort / laugh / attack) |
 

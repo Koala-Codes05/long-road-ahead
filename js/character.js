@@ -22,10 +22,28 @@ export const DRIVER_PROFILE = {
     wantsTo: 'Run the NighTrunners off her mountain.',
     bio: [
         'Ex-Kaido-Works test pilot turned outlaw street-racer. The porcelain cat-ear rig she wears is a custom heads-up display helmet from her prototype days — the ears are range antennas, supposedly.',
-        'She drives the 6.3 km loop they call the LONG ROAD — storm, drizzle, day or dead of night — chasing a perfect drift chain nobody has ever laid down end-to-end.',
+        'Off the clock she swaps the exo for a rib-knit crop and a grin — but get her behind the wheel and it’s all business. She drives the 6.3 km loop they call the LONG ROAD — storm, drizzle, day or dead of night — chasing a perfect drift chain nobody has ever laid down end-to-end.',
         'Rivals say she talks to her car. Her car seems to answer.',
     ],
-    stats: { topSpeed: 315, bestChain: 0, racesWon: 47, rep: 'S-CLASS' },
+    // Wardrobe — both outfits built from the provided reference images
+    outfits: {
+        armor: {
+            id: 'armor',
+            label: 'COMBAT RIG',
+            icon: '🦾',
+            desc: 'Porcelain exo test-pilot armor — the cat-ear HUD rig',
+            full: 'assets/character/soveeta_full.png',
+            portrait: 'assets/character/soveeta_portrait.png',
+        },
+        street: {
+            id: 'street',
+            label: 'STREET KNIT',
+            icon: '🧶',
+            desc: 'Neo-Kyoto off-duty fit — rib-knit crop & gloss suit',
+            full: 'assets/character/soveeta_street_full.png',
+            portrait: 'assets/character/soveeta_street_portrait.png',
+        },
+    },
     art: {
         full: 'assets/character/soveeta_full.png',
         portrait: 'assets/character/soveeta_portrait.png',
@@ -81,11 +99,40 @@ const BANK_COOLDOWN = {
 export class CharacterSystem {
     constructor() {
         this.profile = DRIVER_PROFILE;
+        this.outfitId = 'armor';
+        try { this.outfitId = localStorage.getItem('soveeta_outfit') || 'armor'; } catch (e) { /* private mode */ }
+        if (!this.profile.outfits[this.outfitId]) this.outfitId = 'armor';
         this._audioPool = new Map();
         this._lastBankTime = new Map();
         this._quipTimer = 0;
         this._panelOpen = false;
         this._el = {};
+    }
+
+    get outfit() { return this.profile.outfits[this.outfitId]; }
+
+    /** Swap wardrobe (dossier outfit buttons) — swaps HUD avatar + dossier art. */
+    setOutfit(id) {
+        if (!this.profile.outfits[id] || id === this.outfitId) return;
+        this.outfitId = id;
+        try { localStorage.setItem('soveeta_outfit', id); } catch (e) { /* noop */ }
+        this._applyOutfitArt();
+        this.quip(id === 'street' ? 'Off-duty fit. Don’t stare.' : 'Rig online. Ranges pinged.');
+    }
+
+    _applyOutfitArt() {
+        const o = this.outfit;
+        if (this._el.avatar) this._el.avatar.src = o.portrait;
+        const art = document.getElementById('driver-profile-art');
+        if (art) art.src = o.full;
+        const loaderImg = document.getElementById('loader-driver-img');
+        if (loaderImg) loaderImg.src = o.portrait;
+        const desc = document.getElementById('driver-outfit-desc');
+        if (desc) desc.textContent = o.desc;
+        if (this._el.outfitRow) {
+            this._el.outfitRow.querySelectorAll('button').forEach(b =>
+                b.classList.toggle('active', b.dataset.outfit === this.outfitId));
+        }
     }
 
     init() {
@@ -96,6 +143,13 @@ export class CharacterSystem {
         this._el.panel = document.getElementById('driver-profile');
         this._el.panelClose = document.getElementById('driver-profile-close');
         this._el.stats = document.getElementById('driver-stat-list');
+        this._el.outfitRow = document.getElementById('driver-outfit-row');
+
+        if (this._el.outfitRow) {
+            this._el.outfitRow.querySelectorAll('button').forEach(btn => {
+                btn.addEventListener('click', () => this.setOutfit(btn.dataset.outfit));
+            });
+        }
 
         if (this._el.avatar) this._el.avatar.src = this.profile.art.portrait;
         if (this._el.chipName) this._el.chipName.textContent = this.profile.displayName;
@@ -127,6 +181,9 @@ export class CharacterSystem {
                 this.toggleProfilePanel();
             }
         });
+
+        // Apply persisted wardrobe choice (swaps avatar + dossier art if stored)
+        this._applyOutfitArt();
 
         // Pre-warm audio files so first playback isn't latent
         Object.values(VOICE_BANKS).flat().forEach(f => this._poolAudio(f));

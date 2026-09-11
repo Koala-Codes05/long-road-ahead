@@ -996,3 +996,48 @@ body.photo-mode #webgl-canvas { cursor: none; }
 
 /* Center the fame badge + drift chain text block */
 #dc-top-center { text-align: center; }
+
+/* --- Driver dossier wardrobe selector --- */
+.dp-outfit-block {
+    margin: 4px 0 16px;
+    padding: 12px 14px;
+    border: 1px solid rgba(55, 200, 255, 0.22);
+    background: rgba(55, 200, 255, 0.04);
+}
+.dp-outfit-label {
+    display: block;
+    font-family: 'Orbitron';
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    color: #37c8ff;
+    margin-bottom: 8px;
+}
+.dp-outfit-row { display: flex; gap: 8px; margin-bottom: 8px; }
+.dp-outfit-row button {
+    flex: 1;
+    font-family: 'Orbitron';
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    padding: 9px 6px;
+    cursor: pointer;
+    color: #9fb2cc;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.15);
+    transition: all 0.15s ease;
+}
+.dp-outfit-row button:hover { border-color: #ff2d95; color: #fff; }
+.dp-outfit-row button.active {
+    color: #ff9ecb;
+    border-color: #ff2d95;
+    background: rgba(255,45,149,0.14);
+    box-shadow: 0 0 14px rgba(255,45,149,0.35);
+}
+#driver-outfit-desc {
+    font-family: 'Rajdhani';
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #8fa3bf;
+    font-style: italic;
+}
