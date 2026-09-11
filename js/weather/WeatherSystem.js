@@ -41,8 +41,13 @@ export class WeatherSystem {
         this.rainModeNames = ['HYBRID (OLD + NEW)', 'CLASSIC GLASS', 'DRIVECLUB 3D'];
 
         // 1. Windshield Post-Processing Pass
-        this.windshieldPass = new WindshieldPass(this.composer);
-        this.rainPass = this.windshieldPass.rainPass; // Exposed for main.js camera controller
+        this.windshieldPass = null;
+        this.rainPass = null;
+        const _noRain = typeof window !== 'undefined' && window.__LRA_NO_PASS && window.__LRA_NO_PASS.has('rain');
+        if (!_noRain) {
+            this.windshieldPass = new WindshieldPass(this.composer);
+            this.rainPass = this.windshieldPass.rainPass; // Exposed for main.js camera controller
+        }
 
         // 2. Lighting & Storm Controller
         this.rainLighting = new RainLighting(this.vehicle, this.world);
@@ -109,7 +114,7 @@ export class WeatherSystem {
         this.weatherType = type;
         this._gltfMatUpdated = false;
 
-        this.windshieldPass.setWeatherType(type);
+        this.windshieldPass?.setWeatherType(type);
         this.lightningSystem.setWeatherType(type);
         this.wetRoadManager.updatePreset(type);
         if (this.atmosphericFog) {
@@ -270,7 +275,7 @@ export class WeatherSystem {
 
         this.tireMist.update(dt, this.weatherType, this.windVector);
         this.cloudSystem.update(dt, camera ? camera.position : carPos);
-        this.windshieldPass.updateUniforms(speed, this.gForce, this.windVector, this.clockTime);
+        this.windshieldPass?.updateUniforms(speed, this.gForce, this.windVector, this.clockTime);
         this.wiperController.update(dt, this.weatherType, cameraMode, speed, speedRatio, this.windVector);
 
         // Adjust glass refraction blur based on 3rd vs 1st person perspective
