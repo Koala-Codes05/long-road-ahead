@@ -19,6 +19,7 @@ import { createFisheyePass } from './fisheyeShader.js';
 import { Minimap } from './minimap.js';
 import { AudioEngine } from './audio.js';
 import { CharacterSystem } from './character.js';
+import { PauseSystem, SettingsSystem } from './ui.js';
 import { FeedbackSystem } from './feedback.js';
 import { PhotoMode } from './photoMode.js';
 import { getProfileList } from './vehicleProfiles.js';
@@ -809,6 +810,23 @@ const photoMode = new PhotoMode({
 });
 photoMode.init();
 
+// ===== Pause menu (ESC) + Settings page =====
+const uiDeps = {
+    renderer,
+    passes: { bloomPass, motionBlurPass, filmGrainPass },
+    audioEngine,
+    character,
+    vehicle,
+    photoMode,
+    feedback,
+    drifting: vehicle.driftingSystem,
+};
+const pauseSystem = new PauseSystem();
+pauseSystem.init(uiDeps);
+const settingsSystem = new SettingsSystem();
+settingsSystem.init(uiDeps);
+uiDeps.settings = settingsSystem;
+
 // Auto-unlock Web Audio on user gesture
 const unlockAudio = () => {
     if (audioEngine) audioEngine.init();
@@ -1511,8 +1529,11 @@ function animate() {
 
     const dt = Math.min(clock.getDelta(), 0.05);
     const photoActive = photoMode && photoMode.active;
+    const uiPaused = pauseSystem && pauseSystem.paused;
 
-    if (!photoActive) {
+    if (uiPaused) {
+        // Simulation frozen — still render the current frame (pause backdrop)
+    } else if (!photoActive) {
         // ---- LIVE SIMULATION (frozen while photo mode frames the shot) ----
         vehicle.camera = camera;
         vehicle.update(dt, input, weather);

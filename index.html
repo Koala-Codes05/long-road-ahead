@@ -157,6 +157,71 @@
         </div>
     </div>
 
+    <!-- ===== PAUSE MENU (ESC) ===== -->
+    <div id="pause-overlay" aria-hidden="true">
+        <div class="pm-backdrop"></div>
+        <div class="pm-card">
+            <div class="pm-header">
+                <span class="pm-kicker">LONG ROAD AHEAD</span>
+                <h2>PAUSED</h2>
+                <div id="pm-stats" class="pm-stats"></div>
+            </div>
+            <div class="pm-nav">
+                <button class="pm-tab active" data-tab="resume">▶ RESUME</button>
+                <button class="pm-tab" data-tab="settings">⚙ SETTINGS</button>
+                <button class="pm-tab" data-tab="controls">🎮 CONTROLS</button>
+                <button class="pm-tab" id="pm-photo">📷 PHOTO MODE</button>
+            </div>
+            <div class="pm-body">
+                <div class="pm-panel active" id="pm-panel-resume">
+                    <p class="pm-hint">Simulation frozen. Rain stays on the glass. Take your time — the mountain waits.</p>
+                </div>
+
+                <div class="pm-panel" id="pm-panel-settings">
+                    <div class="set-row">
+                        <label>GRAPHICS QUALITY</label>
+                        <select id="set-quality">
+                            <option value="performance">PERFORMANCE (0.85x)</option>
+                            <option value="balanced">BALANCED (1.15x)</option>
+                            <option value="quality">QUALITY (native ≤1.6x)</option>
+                            <option value="ultra">ULTRA (native ×2)</option>
+                        </select>
+                    </div>
+                    <div class="set-row set-switches">
+                        <label class="switch-wrap"><input type="checkbox" id="set-bloom"><span>BLOOM</span></label>
+                        <label class="switch-wrap"><input type="checkbox" id="set-motion"><span>MOTION BLUR</span></label>
+                        <label class="switch-wrap"><input type="checkbox" id="set-grain"><span>FILM GRAIN</span></label>
+                    </div>
+                    <div class="set-row set-switches">
+                        <label class="switch-wrap"><input type="checkbox" id="set-voice"><span>SOVEETA VOICE</span></label>
+                        <label class="switch-wrap"><input type="checkbox" id="set-fps"><span>FPS COUNTER</span></label>
+                    </div>
+                    <div class="set-row">
+                        <label>MASTER VOLUME</label>
+                        <input type="range" id="set-volume" min="0" max="100" value="90">
+                    </div>
+                    <div class="set-row">
+                        <label>HANDLING MOOD</label>
+                        <div class="dp-outfit-row" id="set-handling">
+                            <button data-handling="0">🛡 GRIP</button>
+                            <button data-handling="1">⚖ BALANCED</button>
+                            <button data-handling="2">🏁 DRIFT</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pm-panel" id="pm-panel-controls">
+                    <div class="pm-ctl">
+                        <span><b>W A S D</b> drive · <b>SPACE</b> handbrake · <b>SHIFT</b> nitro</span>
+                        <span><b>C / V</b> camera · <b>L / F</b> headlights · <b>Q / E</b> signals · <b>H</b> hazards</span>
+                        <span><b>G</b> handling mood · <b>B</b> body paint · <b>T</b> engine profile · <b>R</b> rain mode</span>
+                        <span><b>P</b> photo mode · <b>TAB</b> driver dossier · <b>ESC</b> pause</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Driver Profile Panel (TAB / click chip) -->
     <div id="driver-profile" aria-hidden="true">
         <div class="dp-art-bg" id="driver-profile-art-bg"></div>

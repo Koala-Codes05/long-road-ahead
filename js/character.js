@@ -245,6 +245,7 @@ export class CharacterSystem {
 
     /** Play a random voice line from a bank (cooldown-guarded). */
     playVoice(bank) {
+        if (this.voiceEnabled === false) return; // settings: SOVEETA VOICE off
         const files = VOICE_BANKS[bank];
         if (!files || files.length === 0) return;
         const now = performance.now();
