@@ -1248,7 +1248,16 @@ if (elBadgePhoto) elBadgePhoto.onclick = () => photoMode.toggle();
 
 window.addEventListener('keydown', (e) => {
     if (e.code === 'KeyT' && !e.repeat) cycleAudioProfile();
+    if (e.code === 'KeyB' && !e.repeat) cycleBodyPaint();
 });
+
+function cycleBodyPaint() {
+    const p = vehicle.cyclePaint();
+    if (p) {
+        feedback.popup(`🎨 ${p.name}<br><small style="font-size:11px;letter-spacing:1px;color:#9fb2cc">NFS GARAGE — BODY PAINT [B]</small>`, 'bank');
+        character.quip('New coat. Try to keep it shiny.');
+    }
+}
 
 const elBadgeRainmode = document.getElementById('badge-rainmode');
 if (elBadgeRainmode) {

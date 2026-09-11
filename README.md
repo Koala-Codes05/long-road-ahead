@@ -33,6 +33,7 @@ Open **http://localhost:3000** in your browser (Chrome/Edge/Firefox recommended)
 | `P` | **Photo Mode** — free camera + tiled 2K/4K/8K/16K super-resolution capture |
 | `TAB` | **Driver dossier** — meet Soveeta |
 | `T` | **Garage** — switch engine profile (458 V8 / MK-IV 2JZ / V10 RS) |
+| `B` | **NFS garage paint** — Rosso Corsa / Midnight Purple / Electric Blue / Ghost Black / Solar Flare / Kaido Mint |
 | `R` | Rain FX mode |
 | `C` / `V` | Camera view cycle |
 | `L` | Headlights | `H` | Hazards | `Q`/`E` | Signals |
