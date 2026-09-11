@@ -1,18 +1,19 @@
 # Session Summary
 
-## WebGL Shader Compilation Fix (`Program Info Log: Fragment shader is not compiled`)
+## Working Branch Integration (`origin/arena/01a08f07-long-road-ahead`)
 
-### Root Cause
-- In [`js/cinematicGradeShader.js`](file:///d:/Dev%20Domain/~Projects/Long%20Road%20Ahead/js/cinematicGradeShader.js), the photo-mode temperature grading uniform `uWarmth` was defined in the JS uniform map (`uWarmth: { value: 0.0 }`) and referenced in the fragment shader logic (`graded.r += uWarmth * ...`), but was omitted from the GLSL uniform declarations in `fragmentShader`.
-- When Three.js initialized `cinematicGradePass` during post-processing setup on frame 1, WebGL failed to compile the fragment shader due to the undeclared `uWarmth` identifier, resulting in `THREE.WebGLProgram: Shader Error 0 - VALIDATE_STATUS false`.
+1. **Remote Fetch & Merge**:
+   - Fetched latest commits from `origin/arena/01a08f07-long-road-ahead` and merged them into `main` (commit `805cbc9`).
+   - Reconciled merge conflict in [`js/vehicle.js`](file:///d:/Dev%20Domain/~Projects/Long%20Road%20Ahead/js/vehicle.js) between the multi-car definition loader architecture and the Ferrari bounding-box grounding and paint registration logic.
 
-### Fixes Applied
-1. **`js/cinematicGradeShader.js`**:
-   - Added `uniform float uWarmth;` to the fragment shader uniform declarations.
-2. **`js/weather/materials/WetRoadManager.js`**:
-   - Corrected planar reflection UV calculation to world space: `vReflectionUv = uTextureMatrix * (modelMatrix * vec4(transformed, 1.0));`.
-   - Added `#ifdef USE_UV` fallback guards around ripple and puddle UV sampling in the fragment shader patches to prevent compilation failures when UV coordinates are absent.
+2. **Integrated Features & Fixes**:
+   - **Planar Reflection Loop Fix**: Ground planar reflections now exclude meshes referencing the road material or containing `userData.uPlanarMap`, preventing self-sampling feedback loops.
+   - **Ferrari Grounding**: Wheels automatically aligned to ground level ($y = 0$) using bounding-box minimum offsets.
+   - **Tire VFX Stand-down**: Legacy tire smoke/spray automatically stand down when `TireMist v2` is active to eliminate double particle screens.
+   - **NFS Garage Paint**: Clearcoat body recolor on `KeyB` with 6 preset paints and `localStorage` persistence.
+   - **`?nopass=` Killswitch**: Diagnostic URL query parameter to selectively bypass compositor passes.
+   - **Rain Shader Fix**: Default `uTextureShine` texture initialized with a 1x1 `DataTexture` to eliminate console warnings.
 
 ### Verification
-- Ran static GLSL uniform and identifier analysis across all project shaders (`js/cinematicGradeShader.js`, `js/filmGrainShader.js`, `js/fisheyeShader.js`, `js/motionBlurShader.js`, `js/rainShader.js`, `js/vehicle.js`, `js/main.js`, `js/weather/**/*.js`).
-- Syntax validation verified: `node --check js/cinematicGradeShader.js js/weather/materials/WetRoadManager.js`.
+- Syntax validation verified: `node --check js/vehicle.js js/main.js js/character.js js/audio.js js/rainShader.js js/cinematicGradeShader.js js/weather/materials/WetRoadManager.js js/weather/materials/PlanarRoadReflection.js js/weather/WeatherSystem.js js/world.js`.
+- Clean merge commit committed on `main`.
