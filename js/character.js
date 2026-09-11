@@ -22,6 +22,7 @@ export const DRIVER_PROFILE = {
     age: 24,
     ride: 'Ferrari 458 Italia · Kaido MK-IV',
     wantsTo: 'Run the NighTrunners off her mountain.',
+    stats: { topSpeed: 315, bestChain: 0, racesWon: 47, rep: 'S-CLASS' },
     bio: [
         'Ex-Kaido-Works test pilot turned outlaw street-racer. The porcelain cat-ear rig she wears is a custom heads-up display helmet from her prototype days — the ears are range antennas, supposedly.',
         'Off the clock she swaps the exo for a rib-knit crop and a grin — but get her behind the wheel and it’s all business. She drives the 6.3 km loop they call the LONG ROAD — storm, drizzle, day or dead of night — chasing a perfect drift chain nobody has ever laid down end-to-end.',
