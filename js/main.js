@@ -30,7 +30,7 @@ import { getProfileList } from './vehicleProfiles.js';
 const scene = new THREE.Scene();
 const fogColor = new THREE.Color(0x0a101d);
 scene.background = fogColor;
-scene.fog = new THREE.FogExp2(0x0a101d, 0.0055); // Rich volumetric atmospheric night fog
+scene.fog = new THREE.FogExp2(0x0a101d, 0.0044); // Moody night haze — pulled back so the neon city reads
 
 /* =============================================
    CAMERA (Clean Chase View)
@@ -118,7 +118,7 @@ function setupRendererSettings(r) {
     }
     r.setSize(window.innerWidth, window.innerHeight);
     // PHOTOREALISM: full-resolution render up to 2x device pixel ratio (was capped at 1.25)
-    r.setPixelRatio(Math.min(window.devicePixelRatio, 2.0));
+    r.setPixelRatio(Math.min(window.devicePixelRatio, 1.25)); // start sane; governor/quality can raise
     r.shadowMap.enabled = true;
     r.shadowMap.type = THREE.PCFSoftShadowMap; // Soft contact-adjacent penumbra for photoreal shadows
     r.toneMapping = THREE.ACESFilmicToneMapping;
@@ -155,9 +155,9 @@ function initComposerAndPasses(r) {
     // tighter photoreal light bloom on neon signs, headlights & wet reflections
     bloomPass = new UnrealBloomPass(
         new THREE.Vector2(Math.floor(window.innerWidth * 0.5), Math.floor(window.innerHeight * 0.5)),
-        0.45, // strength
+        0.58, // strength — neon city pop (NFS look)
         0.55, // radius
-        0.82, // threshold
+        0.78, // threshold
     );
     if (passOn('bloom')) comp.addPass(bloomPass);
 
@@ -385,7 +385,7 @@ const hemiLight = new THREE.HemisphereLight(0x4c607a, 0x18202d, 0.50); scene.add
 const moon = new THREE.DirectionalLight(0xb8d0f5, 0.38); // Lowered directional moonlight
 moon.position.set(15, 30, -180);
 moon.castShadow = true;
-moon.shadow.mapSize.set(2048, 2048); // Photoreal 2K crisp shadow map (doubled for fine car/fence shadows)
+moon.shadow.mapSize.set(1024, 1024); // 1K shadows — halves shadow-pass cost, still crisp at night
 moon.shadow.bias = -0.0001; // Prevent shadow acne
 moon.shadow.normalBias = 0.03; // Smooth surface shadow contact
 moon.shadow.camera.left = -70;
@@ -821,6 +821,9 @@ const uiDeps = {
     feedback,
     drifting: vehicle.driftingSystem,
 };
+const perfGovernor = new PerfGovernor(renderer, weather, feedback);
+window.__LRA_GOVERNOR = perfGovernor;
+
 const pauseSystem = new PauseSystem();
 pauseSystem.init(uiDeps);
 const settingsSystem = new SettingsSystem();
@@ -1313,6 +1316,60 @@ window.addEventListener('keydown', (e) => {
 });
 
 /* =============================================
+   ADAPTIVE PERFORMANCE GOVERNOR
+   Measures rolling fps; steps render resolution down/up between
+   quality tiers so the game self-heals lag on any GPU. The settings
+   quality select acts as the CAP the governor may not exceed.
+   ============================================= */
+class PerfGovernor {
+    constructor(renderer, weather, feedback) {
+        this.renderer = renderer;
+        this.weather = weather;
+        this.feedback = feedback;
+        this.tiers = [0.8, 0.95, 1.1, 1.25, 1.5, 1.75, 2.0];
+        this.idx = 3;                       // start at 1.25x
+        this.capPr = 1.6;                   // 'quality' default; settings overrides
+        this._acc = 0; this._frames = 0; this._cooldown = 0;
+        this._apply();
+        const last = this.tiers.length - 1;
+        while (this.idx > 0 && this.tiers[this.idx] > this.capPr) this.idx--;
+    }
+    setCap(pr) {
+        this.capPr = pr;
+        while (this.idx > 0 && this.tiers[this.idx] > pr) { this.idx--; this._changed('quality'); }
+        this._apply();
+    }
+    _apply() {
+        const pr = Math.min(window.devicePixelRatio, this.tiers[this.idx], this.capPr);
+        this.renderer.setPixelRatio(pr);
+        window.dispatchEvent(new Event('resize'));
+        // Lowest tiers also get a cheaper mirror
+        const planar = this.weather?.wetRoadManager?.planarReflection;
+        if (planar) planar.lowPower = this.idx <= 1;
+    }
+    _changed() {
+        this._apply();
+        if (this.feedback) {
+            const pr = Math.min(window.devicePixelRatio, this.tiers[this.idx], this.capPr);
+            this.feedback.popup(`⚡ PERF AUTO-TUNE · ${Math.round(pr * 100)}% RES`, 'bank');
+        }
+    }
+    frame(dtMs) {
+        this._acc += dtMs; this._frames++;
+        this._cooldown -= dtMs;
+        if (this._acc < 2000) return;
+        const fps = (this._frames * 1000) / this._acc;
+        this._acc = 0; this._frames = 0;
+        if (this._cooldown > 0) return;
+        if (fps < 42 && this.idx > 0) { this.idx--; this._cooldown = 4000; this._changed(); }
+        else if (fps > 57 && this.idx < this.tiers.length - 1 && this.tiers[this.idx + 1] <= this.capPr) {
+            this.idx++; this._cooldown = 6000; this._changed();
+        }
+    }
+}
+window.__LRA_GOVERNOR = null;
+
+/* =============================================
    RESOLUTION TIERED WINDOW RESIZE HANDLER
    Full (1.0x): Scene Geometry & Materials
    Half (0.5x): Planar SSR & Atmosphere
@@ -1514,6 +1571,7 @@ function animate() {
     const now = performance.now();
     const frameDtMs = now - lastFrameTime;
     lastFrameTime = now;
+    if (perfGovernor) perfGovernor.frame(frameDtMs);
 
     frameCount++;
     fpsTimer += frameDtMs;

@@ -9,7 +9,7 @@
 const SETTINGS_KEY = 'lra_settings_v1';
 
 const DEFAULT_SETTINGS = {
-    quality: 'quality',        // performance | balanced | quality | ultra
+    quality: 'balanced',       // performance | balanced | quality | ultra
     bloom: true,
     motionBlur: true,
     filmGrain: true,
@@ -154,9 +154,10 @@ export class SettingsSystem {
         const d = this.deps, s = this.settings;
         switch (key) {
             case 'quality': {
-                const pr = { performance: 0.85, balanced: 1.15, quality: Math.min(window.devicePixelRatio, 1.6), ultra: Math.min(window.devicePixelRatio, 2.0) }[s.quality] || 1.6;
-                d.renderer?.setPixelRatio(pr);
-                window.dispatchEvent(new Event('resize'));
+                // Feed the adaptive governor's CAP (it picks the actual ratio)
+                const pr = { performance: 0.95, balanced: 1.3, quality: 1.6, ultra: 2.0 }[s.quality] || 1.3;
+                if (window.__LRA_GOVERNOR) window.__LRA_GOVERNOR.setCap(pr);
+                else { d.renderer?.setPixelRatio(Math.min(window.devicePixelRatio, pr)); window.dispatchEvent(new Event('resize')); }
                 break;
             }
             case 'bloom':

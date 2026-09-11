@@ -9,9 +9,11 @@ export class PlanarRoadReflection {
     constructor(scene, options = {}) {
         this.scene = scene;
         this.enabled = true;
-        // Half-Resolution Tier (0.50x) fits comfortably within 0.8-1.2 ms GPU budget
-        this.width = options.width || 768;
-        this.height = options.height || 384;
+        // Quarter-res mirror — glossy streaks don't need pixels; huge perf win
+        this.width = options.width || 512;
+        this.height = options.height || 256;
+        this._frameCounter = 0;
+        this.lowPower = false;
 
         this.plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0.0);
         this.reflectionCamera = new THREE.PerspectiveCamera();
@@ -78,6 +80,12 @@ export class PlanarRoadReflection {
     update(renderer, mainCamera, wetness = 1.0, roadMaterial = null) {
         if (roadMaterial) this._roadMaterial = roadMaterial;
         if (!this.enabled || wetness < 0.02 || !renderer || !mainCamera) return;
+
+        // Frame-skip: mirror refreshes at half rate (quarter rate in low power).
+        // A wet-asphalt streak mirror looks identical at 30/15 Hz — half the cost.
+        this._frameCounter++;
+        const skipN = this.lowPower ? 4 : 2;
+        if (this._frameCounter % skipN !== 0) return;
 
         // 1. Refresh mesh cache periodically (every ~3 seconds) to account for dynamic chunks
         const now = performance.now();
