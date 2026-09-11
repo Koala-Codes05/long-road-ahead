@@ -18,7 +18,17 @@ const _rightVec = new THREE.Vector3();
 let _cachedSprayTex = null;
 function getWetSprayParticleTexture() {
     if (_cachedSprayTex) return _cachedSprayTex;
-    _cachedSprayTex = new THREE.TextureLoader().load('assets/VFX/brackeys_vfx_bundle/particles/alpha/smoke_01_a.png');
+    const canvas = document.createElement('canvas');
+    canvas.width = 64; canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0.0, 'rgba(255, 255, 255, 0.9)');
+    grad.addColorStop(0.35, 'rgba(220, 235, 255, 0.6)');
+    grad.addColorStop(0.7, 'rgba(180, 205, 235, 0.18)');
+    grad.addColorStop(1.0, 'rgba(0, 0, 0, 0.0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 64, 64);
+    _cachedSprayTex = new THREE.CanvasTexture(canvas);
     _cachedSprayTex.minFilter = THREE.LinearFilter;
     _cachedSprayTex.magFilter = THREE.LinearFilter;
     return _cachedSprayTex;
@@ -27,7 +37,17 @@ function getWetSprayParticleTexture() {
 let _cachedSmokeTex = null;
 function getSmokeParticleTexture() {
     if (_cachedSmokeTex) return _cachedSmokeTex;
-    _cachedSmokeTex = new THREE.TextureLoader().load('assets/VFX/brackeys_vfx_bundle/particles/alpha/smoke_07_strong_a.png');
+    const canvas = document.createElement('canvas');
+    canvas.width = 64; canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0.0, 'rgba(255, 255, 255, 0.95)');
+    grad.addColorStop(0.4, 'rgba(235, 240, 250, 0.7)');
+    grad.addColorStop(0.75, 'rgba(190, 200, 215, 0.2)');
+    grad.addColorStop(1.0, 'rgba(0, 0, 0, 0.0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 64, 64);
+    _cachedSmokeTex = new THREE.CanvasTexture(canvas);
     _cachedSmokeTex.minFilter = THREE.LinearFilter;
     _cachedSmokeTex.magFilter = THREE.LinearFilter;
     return _cachedSmokeTex;

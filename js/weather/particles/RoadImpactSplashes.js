@@ -22,7 +22,17 @@ export class RoadImpactSplashes {
     }
 
     _createSplashTexture() {
-        const tex = new THREE.TextureLoader().load('assets/VFX/brackeys_vfx_bundle/particles/alpha/circle_01_a.png');
+        const canvas = document.createElement('canvas');
+        canvas.width = 32; canvas.height = 32;
+        const ctx = canvas.getContext('2d');
+        const grad = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+        grad.addColorStop(0.0, 'rgba(255, 255, 255, 1.0)');
+        grad.addColorStop(0.6, 'rgba(220, 240, 255, 0.8)');
+        grad.addColorStop(1.0, 'rgba(255, 255, 255, 0.0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 32, 32);
+
+        const tex = new THREE.CanvasTexture(canvas);
         tex.minFilter = THREE.LinearFilter;
         tex.magFilter = THREE.LinearFilter;
         return tex;

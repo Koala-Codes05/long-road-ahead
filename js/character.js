@@ -51,6 +51,12 @@ export const DRIVER_PROFILE = {
         portrait: 'assets/character/soveeta_portrait.png',
         garage: 'assets/character/soveeta_garage.jpg',
     },
+    stats: {
+        topSpeed: 320,
+        bestChain: 42500,
+        racesWon: 142,
+        rep: 'LVL 50 · LEGEND',
+    },
 };
 
 const VOICE_DIR = 'assets/Sounds/soveeta/';
@@ -225,12 +231,12 @@ export class CharacterSystem {
 
     _renderStats() {
         if (!this._el.stats) return;
-        const s = this.profile.stats;
+        const s = this.profile?.stats || { topSpeed: 320, bestChain: 0, racesWon: 0, rep: 'ROOKIE' };
         this._el.stats.innerHTML = `
-            <li><span>TOP SPEED</span><b>${s.topSpeed} KM/H</b></li>
-            <li><span>BEST CHAIN</span><b id="driver-stat-best">${s.bestChain.toLocaleString('en-US')}</b></li>
-            <li><span>RACES WON</span><b>${s.racesWon}</b></li>
-            <li><span>REP</span><b>${s.rep}</b></li>`;
+            <li><span>TOP SPEED</span><b>${s.topSpeed || 0} KM/H</b></li>
+            <li><span>BEST CHAIN</span><b id="driver-stat-best">${(s.bestChain || 0).toLocaleString('en-US')}</b></li>
+            <li><span>RACES WON</span><b>${s.racesWon || 0}</b></li>
+            <li><span>REP</span><b>${s.rep || 'ROOKIE'}</b></li>`;
     }
 
     _poolAudio(file) {

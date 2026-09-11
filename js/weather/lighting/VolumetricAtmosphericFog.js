@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createProceduralNoiseTexture } from '../textures/ProceduralTextures.js';
 
 /**
  * VolumetricAtmosphericFog — Dynamic Volumetric Height Fog & Light Scattering Engine.
@@ -43,8 +44,8 @@ export class VolumetricAtmosphericFog {
         geo.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
         geo.setAttribute('alpha', new THREE.BufferAttribute(alphas, 1));
 
-        // High-Resolution PBR Noise Map (assets/Textures/fog_noise.png)
-        const mistTex = new THREE.TextureLoader().load('assets/Textures/fog_noise.png');
+        // High-Resolution PBR Noise Map (procedural canvas texture)
+        const mistTex = createProceduralNoiseTexture(128);
         mistTex.minFilter = THREE.LinearFilter;
         mistTex.magFilter = THREE.LinearFilter;
 

@@ -156,38 +156,8 @@ export class AudioEngine {
     }
 
     async _preloadEssentialSounds() {
-        const soundMap = {
-            startEngine: 'assets/Sounds/Vehicle_Essentials_NOX_SOUND/Vehicle_Essential_Car/Vehicle_Car_Start_Engine_Exterior_Mono.wav',
-            stopEngine: 'assets/Sounds/Vehicle_Essentials_NOX_SOUND/Vehicle_Essential_Car/Vehicle_Car_Stop_Engine_Exterior_Mono.wav',
-            horn: 'assets/Sounds/Vehicle_Essentials_NOX_SOUND/Vehicle_Essential_Car/Vehicle_Car_Horn_Exterior_Mono.wav',
-            handbrake: 'assets/Sounds/Vehicle_Essentials_NOX_SOUND/Vehicle_Essential_Car/Vehicle_Car_Hand_Brake_Mono_01.wav',
-            click: 'assets/Sounds/Vehicle_Essentials_NOX_SOUND/Vehicle_Essential_Car/Vehicle_Car_Button_Mono_01.wav',
-            door: 'assets/Sounds/Vehicle_Essentials_NOX_SOUND/Vehicle_Essential_Car/Vehicle_Car_Door_Closing_Exterior_Mono_01.wav',
-            stormRain: 'assets/Sounds/Nature_Essentials_NOX_SOUND/Ambiance_Rain_Strong_Loop_Stereo.wav',
-            drizzleRain: 'assets/Sounds/Nature_Essentials_NOX_SOUND/Ambiance_Rain_Calm_Loop_Stereo.wav',
-            windAmbiance: 'assets/Sounds/Nature_Essentials_NOX_SOUND/Ambiance_Wind_Calm_Loop_Stereo.wav',
-            nightAmbiance: 'assets/Sounds/Nature_Essentials_NOX_SOUND/Ambiance_Night_Loop_Stereo.wav',
-        };
-
         this.rawEssentialBuffers = {};
-        for (const [key, path] of Object.entries(soundMap)) {
-            try {
-                const res = await fetch(path);
-                if (res.ok) {
-                    const buf = await res.arrayBuffer();
-                    this.rawEssentialBuffers[key] = buf;
-                    console.log(`🔊 Essential Sound preloaded: ${key}`);
-                    if (this.ctx) {
-                        try {
-                            this.essentialBuffers[key] = await this.ctx.decodeAudioData(buf.slice(0));
-                            if (key === 'stormRain' || key === 'drizzleRain') {
-                                this._startRainLoops();
-                            }
-                        } catch (e) {}
-                    }
-                }
-            } catch (e) {}
-        }
+        // NOX sound pack was pruned from repo; audio engine provides procedural fallback synthesis.
     }
 
 
@@ -592,7 +562,28 @@ export class AudioEngine {
     }
 
     playHorn() {
-        this.playSoundSample('horn', 0.85);
+        if (this.essentialBuffers['horn']) {
+            this.playSoundSample('horn', 0.85);
+            return;
+        }
+        if (!this.ctx || !this.initialized) return;
+        const now = this.ctx.currentTime;
+        const osc1 = this.ctx.createOscillator();
+        const osc2 = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc1.type = 'triangle';
+        osc1.frequency.setValueAtTime(410, now);
+        osc2.type = 'triangle';
+        osc2.frequency.setValueAtTime(480, now);
+        gain.gain.setValueAtTime(0.40, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+        osc1.connect(gain);
+        osc2.connect(gain);
+        gain.connect(this.masterCompressor);
+        osc1.start(now);
+        osc2.start(now);
+        osc1.stop(now + 0.35);
+        osc2.stop(now + 0.35);
     }
 
     playHandbrake() {
@@ -600,7 +591,22 @@ export class AudioEngine {
     }
 
     playGearShift() {
-        this.playSoundSample('click', 0.50, 1.1 + Math.random() * 0.15);
+        if (this.essentialBuffers['click']) {
+            this.playSoundSample('click', 0.50, 1.1 + Math.random() * 0.15);
+            return;
+        }
+        if (!this.ctx || !this.initialized) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(160 + Math.random() * 50, now);
+        gain.gain.setValueAtTime(0.18, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+        osc.connect(gain);
+        gain.connect(this.masterCompressor);
+        osc.start(now);
+        osc.stop(now + 0.08);
     }
 
     playDoorClose() {

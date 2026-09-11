@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { createRippleNormalMap } from '../textures/ProceduralTextures.js';
+import { createRippleNormalMap, createProceduralNoiseTexture } from '../textures/ProceduralTextures.js';
 import { PlanarRoadReflection } from './PlanarRoadReflection.js';
 
 /**
@@ -22,7 +22,7 @@ export class WetRoadManager {
         this.uWetness = { value: 1.0 };
         this.uRippleStrength = { value: 0.65 };
 
-        this.puddleNoiseTex = new THREE.TextureLoader().load('assets/Textures/puddle_noise.png');
+        this.puddleNoiseTex = createProceduralNoiseTexture(256);
         this.puddleNoiseTex.wrapS = THREE.RepeatWrapping;
         this.puddleNoiseTex.wrapT = THREE.RepeatWrapping;
 

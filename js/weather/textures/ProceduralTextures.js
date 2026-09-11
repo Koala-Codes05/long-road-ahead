@@ -310,3 +310,139 @@ export function createSidewalkTileTexture() {
     return tex;
 }
 
+/**
+ * Generates a smooth seamless grayscale noise texture for fog and puddle simulation.
+ */
+export function createProceduralNoiseTexture(size = 256) {
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const imgData = ctx.createImageData(size, size);
+
+    const gSize = 16;
+    const grid = [];
+    for (let i = 0; i <= gSize; i++) {
+        grid[i] = [];
+        for (let j = 0; j <= gSize; j++) {
+            grid[i][j] = Math.random();
+        }
+    }
+
+    const smoothstep = t => t * t * (3 - 2 * t);
+    for (let y = 0; y < size; y++) {
+        const gy = (y / size) * gSize;
+        const y0 = Math.floor(gy);
+        const y1 = (y0 + 1) % gSize;
+        const fy = smoothstep(gy - y0);
+
+        for (let x = 0; x < size; x++) {
+            const gx = (x / size) * gSize;
+            const x0 = Math.floor(gx);
+            const x1 = (x0 + 1) % gSize;
+            const fx = smoothstep(gx - x0);
+
+            const v00 = grid[y0][x0];
+            const v10 = grid[y0][x1];
+            const v01 = grid[y1][x0];
+            const v11 = grid[y1][x1];
+
+            const top = v00 + (v10 - v00) * fx;
+            const bot = v01 + (v11 - v01) * fx;
+            const val = Math.floor((top + (bot - top) * fy) * 255);
+
+            const idx = (y * size + x) * 4;
+            imgData.data[idx] = val;
+            imgData.data[idx + 1] = val;
+            imgData.data[idx + 2] = val;
+            imgData.data[idx + 3] = 255;
+        }
+    }
+    ctx.putImageData(imgData, 0, 0);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    return tex;
+}
+
+/**
+ * Generates soft feathered radial smoke particle texture.
+ */
+export function createSmokeParticleTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64; canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0.0, 'rgba(255, 255, 255, 1.0)');
+    grad.addColorStop(0.35, 'rgba(230, 235, 245, 0.7)');
+    grad.addColorStop(0.7, 'rgba(180, 190, 205, 0.2)');
+    grad.addColorStop(1.0, 'rgba(0, 0, 0, 0.0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 64, 64);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.minFilter = THREE.LinearFilter;
+    return tex;
+}
+
+/**
+ * Generates bright core gradient flame texture for tailpipe backfires.
+ */
+export function createFlameParticleTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64; canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    const grad = ctx.createRadialGradient(32, 32, 2, 32, 32, 30);
+    grad.addColorStop(0.0, 'rgba(255, 255, 255, 1.0)');
+    grad.addColorStop(0.2, 'rgba(100, 220, 255, 0.95)');
+    grad.addColorStop(0.5, 'rgba(30, 120, 255, 0.6)');
+    grad.addColorStop(0.8, 'rgba(255, 60, 180, 0.25)');
+    grad.addColorStop(1.0, 'rgba(0, 0, 0, 0.0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 64, 64);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.minFilter = THREE.LinearFilter;
+    return tex;
+}
+
+/**
+ * Generates glowing pinpoint spark particle texture.
+ */
+export function createSparkParticleTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 32; canvas.height = 32;
+    const ctx = canvas.getContext('2d');
+    const grad = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+    grad.addColorStop(0.0, 'rgba(255, 255, 255, 1.0)');
+    grad.addColorStop(0.25, 'rgba(255, 230, 150, 0.85)');
+    grad.addColorStop(0.6, 'rgba(255, 120, 30, 0.35)');
+    grad.addColorStop(1.0, 'rgba(0, 0, 0, 0.0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 32, 32);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.minFilter = THREE.LinearFilter;
+    return tex;
+}
+
+/**
+ * Generates anti-aliased soft circular dot for rain impact splashes.
+ */
+export function createCircleParticleTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 32; canvas.height = 32;
+    const ctx = canvas.getContext('2d');
+    const grad = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+    grad.addColorStop(0.0, 'rgba(255, 255, 255, 1.0)');
+    grad.addColorStop(0.6, 'rgba(220, 240, 255, 0.8)');
+    grad.addColorStop(1.0, 'rgba(255, 255, 255, 0.0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 32, 32);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.minFilter = THREE.LinearFilter;
+    return tex;
+}
+

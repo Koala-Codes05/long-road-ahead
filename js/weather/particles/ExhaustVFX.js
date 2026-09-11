@@ -1,9 +1,13 @@
 import * as THREE from 'three';
+import {
+    createSmokeParticleTexture,
+    createFlameParticleTexture,
+    createSparkParticleTexture
+} from '../textures/ProceduralTextures.js';
 
 /**
  * ExhaustVFX — High-Fidelity Vehicle Exhaust & Burnout Particle Engine.
- * Integrates Brackeys VFX textures (smoke_01_a, smoke_07_strong_a, flame_01_a, spark_01_a)
- * for tailpipe smoke, backfire nitro flames, tire drift burnout smoke, and road sparks.
+ * Tailpipe smoke, backfire nitro flames, tire drift burnout smoke, and road sparks.
  */
 export class ExhaustVFX {
     constructor(scene) {
@@ -12,15 +16,10 @@ export class ExhaustVFX {
         this.particles = [];
         this.pIndex = 0;
 
-        // Texture Loaders from Brackeys VFX Bundle
-        const loader = new THREE.TextureLoader();
-        const smokeTex = loader.load('assets/VFX/brackeys_vfx_bundle/particles/alpha/smoke_07_strong_a.png');
-        const flameTex = loader.load('assets/VFX/brackeys_vfx_bundle/particles/alpha/flame_01_a.png');
-        const sparkTex = loader.load('assets/VFX/brackeys_vfx_bundle/particles/alpha/spark_01_a.png');
-
-        smokeTex.minFilter = THREE.LinearFilter;
-        flameTex.minFilter = THREE.LinearFilter;
-        sparkTex.minFilter = THREE.LinearFilter;
+        // Procedural particle textures (offline, 0 network latency, 0 asset 404s)
+        const smokeTex = createSmokeParticleTexture();
+        const flameTex = createFlameParticleTexture();
+        const sparkTex = createSparkParticleTexture();
 
         // Instanced Geometry & Material for Volumetric Particle Billboards
         const quadGeo = new THREE.PlaneGeometry(1, 1);
