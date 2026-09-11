@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { RoadsideGenerator } from './roadside.js';
 
 /**
  * Procedural Road Path Generator
@@ -254,6 +255,9 @@ export class World {
         this.chunksAhead = 4;
         this.chunksBehind = 2;
 
+        // City skyline, storefronts, neon signage, billboards & gas stations
+        this.roadside = new RoadsideGenerator();
+
         this._createMaterials();
     }
 
@@ -289,7 +293,9 @@ export class World {
         this.roadMat = new THREE.MeshStandardMaterial({
             map: this.roadBaseColorMap,
             normalMap: this.roadNormalMap,
-            normalScale: new THREE.Vector2(0.8, 0.8),
+            normalScale: new THREE.Vector2(1.6, 1.6),
+            bumpMap: this.roadHeightMap,
+            bumpScale: 0.03,
             roughnessMap: this.roadRoughnessMap,
             roughness: 0.5,
             metalness: 0.25,
@@ -654,8 +660,9 @@ export class World {
             try {
                 const merged = mergeGeometries(geos, false);
                 if (merged && merged.isBufferGeometry) {
-                    const mesh = new THREE.Mesh(merged, mat);
-                    mesh.castShadow = castShadow;
+                const mesh = new THREE.Mesh(merged, mat);
+                mesh.name = 'fused_' + (mat === this.roadMat ? 'road' : (mat === this.puddleMat ? 'puddle' : 'scenery'));
+                mesh.castShadow = castShadow;
                     mesh.receiveShadow = receiveShadow;
                     targetGroup.add(mesh);
                 }
@@ -674,6 +681,11 @@ export class World {
         safeAddMesh(streetLampPoolGeos, this.streetLampPoolMat, g);
         safeAddMesh(puddleGeos, this.puddleMat, g);
         safeAddMesh(signGeos, this.signMat, g);
+
+        // Stream city skyline / storefronts / neon / billboards with this chunk
+        if (this.roadside) {
+            this.roadside.addChunkContent(idx, g, this.chunkSize);
+        }
 
         this.scene.add(g);
         this.generatedChunks.set(idx, g);

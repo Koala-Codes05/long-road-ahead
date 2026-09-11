@@ -1,3 +1,5 @@
+import { getProfile, DEFAULT_AUDIO_PROFILE } from './vehicleProfiles.js';
+
 /**
  * AudioEngine — AAA Professional Vehicle & Environmental Sound Engine
  * Features:
@@ -71,14 +73,61 @@ export class AudioEngine {
         this.smoothedSpeedRatio = 0.0;
         this.smoothedIdleFactor = 1.0;
 
+        // Extra tire squeal boost hook (drift/burnout/donut feedback)
+        this.squealBoost = 0.0;
+
+        // Multi-Vehicle Audio Profile (pitch curves, exhaust timbre, RPM mapping)
+        this.audioProfileId = DEFAULT_AUDIO_PROFILE;
+        this.profile = getProfile(this.audioProfileId);
+        this._loadedPath = null;
+
         // Preload sample
         this._preloadFerrariAudio();
     }
 
+    /**
+     * Switch the active vehicle audio profile (garage / car select).
+     * Pitch curves, exhaust timbre, filter sweeps and squeal character
+     * all follow the new profile. Re-preloads when the profile points
+     * at a different engine sample.
+     */
+    setAudioProfile(id) {
+        const next = getProfile(id);
+        const pathChanged = next.samplePaths[0] !== this._loadedPath;
+        this.audioProfileId = next.id;
+        this.profile = next;
+        if (pathChanged) {
+            this.rawArrayBuffer = null;
+            this._loadedPath = null;
+            this._preloadFerrariAudio();
+            if (this.ctx) this._reDecodeAndRestart();
+        }
+        return next;
+    }
+
+    /** Hot-swap the decoded engine sample after a profile change. */
+    async _reDecodeAndRestart() {
+        try {
+            while (!this.rawArrayBuffer) {
+                await new Promise(r => setTimeout(r, 80));
+            }
+            const buf = await this.ctx.decodeAudioData(this.rawArrayBuffer.slice(0));
+            if (this.ferrariSource) {
+                try { this.ferrariSource.stop(); } catch (e) { /* not started */ }
+                try { this.ferrariSource.disconnect(); } catch (e) { /* noop */ }
+                this.ferrariSource = null;
+            }
+            this.ferrariBuffer = buf;
+            this.isFerrariLoaded = true;
+            this.isFerrariPlaying = false;
+        } catch (e) {
+            console.warn('Engine sample hot-swap failed:', e);
+        }
+    }
+
     async _preloadFerrariAudio() {
-        const candidatePaths = [
+        const candidatePaths = this.profile ? this.profile.samplePaths : [
             'assets/Sounds/ferrari/ferrari-458-italia-sound-effect-going-fast-360530.mp3',
-            'assets/ferrari.mp3',
         ];
 
         for (const path of candidatePaths) {
@@ -86,7 +135,8 @@ export class AudioEngine {
                 const response = await fetch(path);
                 if (!response.ok) continue;
                 this.rawArrayBuffer = await response.arrayBuffer();
-                console.log(`🎵 Ferrari AudioBuffer preloaded from: ${path}`);
+                this._loadedPath = path;
+                console.log(`🎵 Engine sample preloaded from: ${path} [profile: ${this.audioProfileId}]`);
                 break;
             } catch (err) {
                 // Try next candidate
@@ -603,15 +653,17 @@ export class AudioEngine {
             this._startFerrariLoop();
         }
 
+        const vp = this.profile;
+
         if (this.isFerrariLoaded && this.ferrariSource && this.ferrariGain) {
             const effectiveRpm = Math.max(0.0, this.smoothedRpm - this.gearShiftDrop);
-            const targetPitch = 0.82 + (gear - 1) * 0.035 + effectiveRpm * 0.38;
-            const pitch = Math.max(0.70, Math.min(1.45, targetPitch));
+            const targetPitch = vp.pitchBase + (gear - 1) * vp.pitchPerGear + effectiveRpm * vp.pitchPerRpm;
+            const pitch = Math.max(vp.pitchMin, Math.min(vp.pitchMax, targetPitch));
 
             // CRITICAL FIX: When stationary at idle (smoothedIdleFactor > 0.90), MUTED (0.0 volume).
             // Fades in smoothly under acceleration to eliminate driving sample sound on idle!
-            const sampleVol = (this.smoothedIdleFactor > 0.90) ? 0.0 : ((0.35 + this.smoothedSpeedRatio * 0.35 + effectiveRpm * 0.20) * (1.0 - this.smoothedIdleFactor));
-            const filterCutoff = 1400 + (1.0 - this.smoothedIdleFactor) * 2000 + effectiveRpm * 5500;
+            const sampleVol = (this.smoothedIdleFactor > 0.90) ? 0.0 : ((vp.volBase + this.smoothedSpeedRatio * vp.volPerSpeed + effectiveRpm * vp.volPerRpm) * (1.0 - this.smoothedIdleFactor));
+            const filterCutoff = vp.filterIdle + (1.0 - this.smoothedIdleFactor) * vp.filterDriveBoost + effectiveRpm * vp.filterPerRpm;
 
             this.ferrariSource.playbackRate.setTargetAtTime(pitch, now, 0.04);
             this.ferrariFilter.frequency.setTargetAtTime(filterCutoff, now, 0.04);
@@ -622,11 +674,11 @@ export class AudioEngine {
         // 2. SUB-BASS EXHAUST THUD & IDLE RUMBLE (Pure Idle Sound)
         // =============================================
         if (this.subBassOsc && this.exhaustGain) {
-            const baseFreq = 28.0 * this.smoothedIdleFactor + (1.0 - this.smoothedIdleFactor) * (34.0 + (gear - 1) * 4.0 + this.smoothedRpm * 35.0);
+            const baseFreq = vp.subIdleHz * this.smoothedIdleFactor + (1.0 - this.smoothedIdleFactor) * (vp.subBaseHz + (gear - 1) * vp.subPerGearHz + this.smoothedRpm * vp.subPerRpmHz);
             this.subBassOsc.frequency.setTargetAtTime(baseFreq, now, 0.04);
-            this.intakeOsc.frequency.setTargetAtTime(baseFreq * 2.0, now, 0.04);
+            this.intakeOsc.frequency.setTargetAtTime(baseFreq * vp.intakeMul, now, 0.04);
 
-            const filterCutoff = 200 * this.smoothedIdleFactor + (1.0 - this.smoothedIdleFactor) * (350 + this.smoothedRpm * 400);
+            const filterCutoff = vp.exhaustFilterIdle * this.smoothedIdleFactor + (1.0 - this.smoothedIdleFactor) * (vp.exhaustFilterDrive + this.smoothedRpm * vp.exhaustFilterPerRpm);
             this.exhaustFilter.frequency.setTargetAtTime(filterCutoff, now, 0.04);
 
             // Gentle 0.20 volume at idle, blending into deep sub-bass exhaust punch under throttle
@@ -692,12 +744,12 @@ export class AudioEngine {
                 }
 
                 // High-pressure NOS gas rush
-                const jetCutoff = 2800 + this.smoothedRpm * 4500;
+                const jetCutoff = vp.nitroJetCutoff + this.smoothedRpm * vp.nitroJetCutoff * 1.6;
                 this.nitroJetFilter.frequency.setTargetAtTime(jetCutoff, now, 0.04);
                 this.nitroJetGain.gain.setTargetAtTime(0.42, now, 0.04);
 
-                // High-speed turbine whine (950Hz to 2400Hz)
-                const turbineFreq = 950 + this.smoothedRpm * 1450;
+                // High-speed turbine whine (profile-base to top-end)
+                const turbineFreq = vp.nitroTurbineBase + this.smoothedRpm * vp.nitroTurbinePerRpm;
                 this.nitroTurbineOsc.frequency.setTargetAtTime(turbineFreq, now, 0.04);
                 this.nitroTurbineGain.gain.setTargetAtTime(0.22, now, 0.04);
 
@@ -721,22 +773,26 @@ export class AudioEngine {
             const steerAmt = Math.abs(vehicle.steerAngle || vehicle.currentSteer || 0);
             const vLat = Math.abs(vehicle.vLat || 0);
             const isDrifting = vehicle.isDrifting || false;
+            const maneuver = vehicle.maneuversSystem ? vehicle.maneuversSystem.activeManeuver : null;
+            const isStunt = (maneuver === 'BURNOUT' || maneuver === 'DONUT');
 
-            const isTireSqueal = speedKmh > 8.0 && (isDrifting || steerAmt > 0.15 || vLat > 0.8);
+            const isTireSqueal = isStunt || (speedKmh > 8.0 && (isDrifting || steerAmt > 0.15 || vLat > 0.8));
 
             if (isTireSqueal) {
-                const slipFactor = Math.min(1.0, (steerAmt * 1.5) + (vLat * 0.12) + (isDrifting ? 0.4 : 0.0));
+                // Maneuver feedback booster: burnouts/donuts/hard turns scream louder
+                const boost = isStunt ? Math.max(this.squealBoost, 0.6) : this.squealBoost;
+                const slipFactor = Math.min(1.35, (steerAmt * 1.5) + (vLat * 0.12) + (isDrifting ? 0.4 : 0.0) + boost * 0.55);
 
                 this.tireChatterAngle += 0.35;
                 const chatter = Math.sin(this.tireChatterAngle) * 45;
 
-                const centerBp1 = 850 + slipFactor * 350 + chatter;
-                const centerBp2 = 1650 + slipFactor * 450 + chatter;
+                const centerBp1 = vp.tireBp1 + slipFactor * vp.tireBp1Slip + chatter;
+                const centerBp2 = vp.tireBp2 + slipFactor * vp.tireBp2Slip + chatter;
 
                 this.tireBandpass1.frequency.setTargetAtTime(centerBp1, now, 0.03);
                 this.tireBandpass2.frequency.setTargetAtTime(centerBp2, now, 0.03);
 
-                const targetTireVol = 0.12 + slipFactor * 0.28;
+                const targetTireVol = Math.min(0.75, 0.12 + slipFactor * 0.28 + boost * 0.20);
                 this.tireGain.gain.setTargetAtTime(targetTireVol, now, 0.04);
             } else {
                 const isWetScrub = speedKmh > 30 && isRain;
@@ -754,5 +810,8 @@ export class AudioEngine {
             const targetRainVol = isRain ? (weatherType === 0 ? 0.16 : 0.08) : 0.0;
             this.rainGain.gain.setTargetAtTime(targetRainVol, now, 0.08);
         }
+
+        // Decay extra stunt squeal boost (set by FeedbackSystem on burnouts/donuts)
+        this.squealBoost = Math.max(0.0, this.squealBoost - 0.022);
     }
 }

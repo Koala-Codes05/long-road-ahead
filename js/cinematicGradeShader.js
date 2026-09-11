@@ -21,6 +21,7 @@ export function createCinematicGradePass() {
             uHighlightCompress: { value: 0.70 }, // 2. Highlights ↓↓↓
             uShadowLift: { value: 0.035 },         // 3. Shadows ↑ slightly
             uSaturation: { value: 1.04 },          // 5. Saturation moderate
+            uWarmth: { value: 0.0 },               // 6. Photo-mode warm/cool tint (-1 cool, +1 warm)
         },
         vertexShader: `
             varying vec2 vUv;
@@ -77,6 +78,11 @@ export function createCinematicGradePass() {
                 // Saturation Adjustment (Moderate)
                 float gradedLuma = dot(graded, vec3(0.2126, 0.7152, 0.0722));
                 graded = mix(vec3(gradedLuma), graded, uSaturation);
+
+                // 6. Photo-mode temperature tint (warm golden / cool steel)
+                graded.r += uWarmth * 0.085 * (0.4 + 0.6 * gradedLuma);
+                graded.g += uWarmth * 0.030 * (0.4 + 0.6 * gradedLuma);
+                graded.b -= uWarmth * 0.075 * (0.4 + 0.6 * gradedLuma);
 
                 gl_FragColor = vec4(max(vec3(0.0), graded), texColor.a);
             }

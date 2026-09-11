@@ -16,6 +16,17 @@ export const RainShader = {
         uWeatherType: { value: 0 },
         uCameraMode: { value: 0 },
         uLightningFlash: { value: 0.0 },
+        // Modular weather-engine knobs (WindshieldPass / WiperController)
+        uResolution: { value: new THREE.Vector2(1, 1) },
+        uWindVector: { value: new THREE.Vector2(0, 0) },
+        uMinRefraction: { value: 0.002 },   // Soft gate: absorb micro-droplet noise
+        uDropBlurAmount: { value: 0.005 },  // Extra small blur inside droplet area
+        uTextureShine: { value: (() => { // valid 1×1 placeholder (avoids "no image data" warning)
+            const t = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
+            t.needsUpdate = true;
+            return t;
+        })() }, // Drop glint shine map
+        uRenderShine: { value: false },     // Enable texture-driven glints
     },
     vertexShader: `
         varying vec2 vUv;
@@ -34,6 +45,12 @@ export const RainShader = {
         uniform int uWeatherType;
         uniform int uCameraMode;
         uniform float uLightningFlash;
+        uniform vec2 uResolution;
+        uniform vec2 uWindVector;
+        uniform float uMinRefraction;
+        uniform float uDropBlurAmount;
+        uniform sampler2D uTextureShine;
+        uniform bool uRenderShine;
         varying vec2 vUv;
 
         void main() {
@@ -53,6 +70,7 @@ export const RainShader = {
                     // Red & Green channels store normal vector, Blue stores depth/shine
                     vec2 norm = (waterSample.rg - vec2(0.5)) * 2.0;
                     norm.x += uGForce.x * 0.08; // Lateral refraction response to cornering G-Force
+                    norm += uWindVector * 0.04; // Storm wind smear
 
                     totalRefraction += norm * waterSample.a * dropOpacity;
                     totalShine += waterSample.b * waterSample.a * dropOpacity;
@@ -60,16 +78,36 @@ export const RainShader = {
                 }
             }
 
+            // Soft threshold: kills sub-perceptual refraction noise
+            totalRefraction *= smoothstep(uMinRefraction * 0.6, uMinRefraction * 2.5, length(totalRefraction));
+
             // Apply glass lens refraction displacement
             vec2 finalUv = uv + totalRefraction * uRefractionDelta;
             finalUv = clamp(finalUv, vec2(0.001), vec2(0.999));
 
             vec4 sceneColor = texture2D(tDiffuse, finalUv);
 
+            // Cheap 4-tap blur inside droplet areas (cockpit view sells the glass depth)
+            if (totalAlpha > 0.01 && uDropBlurAmount > 0.0005) {
+                vec2 px = vec2(1.0) / max(uResolution, vec2(1.0));
+                vec2 b = uDropBlurAmount * 60.0 * px;
+                vec3 blurCol = sceneColor.rgb;
+                blurCol += texture2D(tDiffuse, clamp(finalUv + vec2( b.x,  b.y), 0.001, 0.999)).rgb;
+                blurCol += texture2D(tDiffuse, clamp(finalUv + vec2(-b.x,  b.y), 0.001, 0.999)).rgb;
+                blurCol += texture2D(tDiffuse, clamp(finalUv + vec2( b.x, -b.y), 0.001, 0.999)).rgb;
+                blurCol += texture2D(tDiffuse, clamp(finalUv + vec2(-b.x, -b.y), 0.001, 0.999)).rgb;
+                sceneColor.rgb = mix(sceneColor.rgb, blurCol * 0.2, clamp(totalAlpha * 0.9, 0.0, 1.0));
+            }
+
             // Apply vivid glass droplet rim glints & realistic refraction highlights
             if (totalAlpha > 0.01) {
                 float dropEdge = smoothstep(0.10, 0.95, totalAlpha);
                 vec3 rimGlint = vec3(0.90, 0.96, 1.0) * totalShine * dropEdge * 0.45;
+
+                if (uRenderShine) {
+                    vec3 shineTex = texture2D(uTextureShine, uv).rgb;
+                    rimGlint *= (0.6 + shineTex * 1.4); // Photoreal sparkle map
+                }
 
                 // Clear glass refraction tint & highlights
                 sceneColor.rgb = mix(sceneColor.rgb, sceneColor.rgb * 0.82 + rimGlint, totalAlpha * 0.70);

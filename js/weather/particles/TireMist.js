@@ -705,6 +705,9 @@ export class TireMist {
             { id: 3, name: 'RR', localX:  0.94, localZ:  1.35, isFront: false, sideSign:  1, pos: new THREE.Vector3(), forwardDir: new THREE.Vector3(), outwardDir: new THREE.Vector3(), rightVec: new THREE.Vector3(), width: 0.30 },
         ];
 
+        // Stunt feedback booster (burnouts/donuts/drift rewards) — decays over ~1.5 s
+        this.maneuverBoost = 0.0;
+
         // Subsystems
         this.wetTracks = new WetTireTracks(this.scene);
         this.waterSpray = new WaterDisplacementSpray(this.scene);
@@ -712,6 +715,11 @@ export class TireMist {
 
         // Dry Weather Smoke Subsystem
         this._initDrySmokeTrail();
+    }
+
+    /** Trigger a thick extra tire-smoke / spray burst (stunt reward feedback). */
+    spawnManeuverBurst() {
+        this.maneuverBoost = 1.0;
     }
 
     _initDrySmokeTrail() {
@@ -813,6 +821,9 @@ export class TireMist {
 
         if (!this.vehicle || !this.vehicle.mesh) return;
 
+        this.maneuverBoost = Math.max(0, this.maneuverBoost - dt * 0.7);
+        const boostMul = 1.0 + this.maneuverBoost * 2.5;
+
         const speedKmh = this.vehicle.getSpeedKmh ? this.vehicle.getSpeedKmh() : Math.abs(this.vehicle.speed || 0) * 3.6;
         const isWet = (weatherType === 0 || weatherType === 1 || weatherType === 2); // Storm, Drizzle, Cloudy Day
 
@@ -831,10 +842,10 @@ export class TireMist {
 
             // 2. SPAWN & UPDATE WATER DISPLACEMENT SPRAY (SPEED-SCALED DISPLACEMENT RATE)
             // Speed ↑ => spray amount ↑, trail length ↑, velocity ↑
-            const sprayRate = Math.min(Math.floor(1 + (speedKmh / 35.0) * wetness), 5);
-            const mistRate = Math.min(Math.floor(1 + (speedKmh / 45.0) * wetness), 4);
+            const sprayRate = Math.min(Math.floor((1 + (speedKmh / 35.0) * wetness) * boostMul), 9);
+            const mistRate = Math.min(Math.floor((1 + (speedKmh / 45.0) * wetness) * boostMul), 7);
 
-            if (speedKmh > 2.0 && wetness > 0.05) {
+            if ((speedKmh > 2.0 || this.maneuverBoost > 0.05) && wetness > 0.05) {
                 for (let w = 0; w < 4; w++) {
                     this.waterSpray.spawnSpray(this.wheelStates[w], speedKmh, wetness, puddleFactor, sprayRate);
                 }
@@ -842,7 +853,7 @@ export class TireMist {
             this.waterSpray.update(dt, windVector);
 
             // 3. SPAWN & UPDATE WHEEL MIST PLUME
-            if (speedKmh > 8.0 && wetness > 0.05) {
+            if ((speedKmh > 8.0 || this.maneuverBoost > 0.05) && wetness > 0.05) {
                 for (let w = 0; w < 4; w++) {
                     this.mistPlume.spawnMist(this.wheelStates[w], speedKmh, wetness, mistRate);
                 }
@@ -860,14 +871,17 @@ export class TireMist {
     _updateDrySmoke(dt, speedKmh, windVector) {
         const isDrifting = this.vehicle.driftingSystem && this.vehicle.driftingSystem.isDrifting;
         const isNitro = !!this.vehicle.isNitro;
+        const maneuver = this.vehicle.maneuversSystem ? this.vehicle.maneuversSystem.activeManeuver : null;
+        const isStunt = (maneuver === 'BURNOUT' || maneuver === 'DONUT') || this.maneuverBoost > 0.05;
 
-        if ((speedKmh > 8.0 || isDrifting) && (isDrifting || isNitro)) {
-            const targetSmokeOp = isDrifting ? 0.60 : 0.25;
+        if ((speedKmh > 8.0 || isDrifting || isStunt) && (isDrifting || isNitro || isStunt)) {
+            const targetSmokeOp = isStunt ? 0.85 : (isDrifting ? 0.60 : 0.25);
 
             [2, 3].forEach(wIdx => {
                 const ws = this.wheelStates[wIdx];
 
-                if (Math.random() < (isDrifting ? 0.6 : 0.2)) {
+                const spawnChance = isStunt ? 0.95 : ((isDrifting ? 0.6 : 0.2) * (1.0 + this.maneuverBoost * 2.0));
+                if (Math.random() < spawnChance) {
                     const idx = this.nextSmokeIdx;
                     this.nextSmokeIdx = (this.nextSmokeIdx + 1) % this.smokeCount;
 
