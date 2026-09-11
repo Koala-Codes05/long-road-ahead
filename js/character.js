@@ -11,6 +11,8 @@
  *  - Loading screen & garage key art
  */
 
+import { SoveetaViewer3D } from './viewer3d.js';
+
 export const DRIVER_PROFILE = {
     id: 'soveeta',
     displayName: 'SOVEETA',
@@ -107,6 +109,26 @@ export class CharacterSystem {
         this._quipTimer = 0;
         this._panelOpen = false;
         this._el = {};
+        this._viewer3d = null;
+        this._view = 'art';
+    }
+
+    /** Dossier left pane: ART (key art) vs 3D (procedural GLB turntable). */
+    _setView(view) {
+        this._view = view;
+        const art = document.getElementById('driver-profile-art');
+        const canvas = document.getElementById('driver-3d-canvas');
+        if (!art || !canvas) return;
+        if (view === '3d') {
+            canvas.style.display = 'block';
+            art.style.visibility = 'hidden';
+            if (!this._viewer3d) this._viewer3d = new SoveetaViewer3D(canvas);
+            this._viewer3d.start();
+        } else {
+            canvas.style.display = 'none';
+            art.style.visibility = 'visible';
+            this._viewer3d?.stop();
+        }
     }
 
     get outfit() { return this.profile.outfits[this.outfitId]; }
@@ -148,6 +170,18 @@ export class CharacterSystem {
         if (this._el.outfitRow) {
             this._el.outfitRow.querySelectorAll('button').forEach(btn => {
                 btn.addEventListener('click', () => this.setOutfit(btn.dataset.outfit));
+            });
+        }
+
+        // ART ⇄ 3D dossier view toggle
+        const viewToggle = document.getElementById('driver-view-toggle');
+        if (viewToggle) {
+            viewToggle.querySelectorAll('button').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    viewToggle.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    this._setView(btn.dataset.view);
+                });
             });
         }
 
@@ -266,6 +300,7 @@ export class CharacterSystem {
         this._el.panel.classList.toggle('open', show);
         this._el.panel.setAttribute('aria-hidden', show ? 'false' : 'true');
         if (show) this.quip(this._pickQuip('profile'));
+        else this._viewer3d?.stop();   // don't burn GPU on a hidden turntable
     }
 
     update(dt) {

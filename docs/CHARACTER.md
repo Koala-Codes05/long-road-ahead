@@ -51,3 +51,25 @@ skin, dark brown ponytail, dark eyes, calm confidence.
 
 - The dossier's `BEST CHAIN` stat persists per session; wire to `localStorage` for permanence.
 - Voice banks are simple URL lists — drop localized lines into `assets/Sounds/soveeta/` and extend `VOICE_BANKS`.
+
+---
+
+## 3D Model — Combat Rig v1 (procedural GLB)
+
+`assets/character/soveeta_3d.glb` is a procedurally generated 3D figure of
+Soveeta in her **COMBAT RIG**, built to the master concept (image-1 of the
+design brief): porcelain cat-ear helmet rig, gloss-black under-suit, pleated
+armor skirt, crimson thigh-highs, brass joint rings, sheathed katana.
+
+- Built by `tools/build_soveeta_glb.py` — a zero-dependency pure-Python GLB
+  writer (62 named parts, ~51k verts, PBR materials: Porcelain / GlossBlack /
+  Crimson / Brass / Visor / SkirtFabric, smooth shading, correct normals).
+- Viewed in-game: **TAB → dossier → 🧊 3D** — turntable with drag-orbit,
+  wheel zoom, procedural studio HDRI (RoomEnvironment) and neon rim lights.
+
+### Upgrading to an AAA model
+The viewer hot-swaps: it probes `assets/character/soveeta_3d_aaa.glb` first and
+falls back to the procedural file. Generate a high-end model from the concept
+image on your own machine (Meshy AI / Tripo3D / Rodin support image-to-3D +
+auto-rig; their MCP servers can't run inside this build sandbox), drop the GLB
+in as `soveeta_3d_aaa.glb`, and it appears in-game with zero code changes.

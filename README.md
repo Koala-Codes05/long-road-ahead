@@ -41,7 +41,7 @@ Open **http://localhost:3000** in your browser (Chrome/Edge/Firefox recommended)
 
 ## ✨ Features
 
-- 🦊 **Soveeta Catin BealaLim** — photorealistic driver character: HUD chip, live quips, voice lines, dossier, in-world billboards
+- 🦊 **Soveeta Catin BealaLim** — photorealistic driver character: HUD chip, live quips, voice lines, dossier (TAB) with wardrobe switcher (Combat Rig ⇄ Street Knit) and an **orbitable 3D model turntable** (procedural GLB; drop in `soveeta_3d_aaa.glb` to hot-swap a AAA model), in-world hero billboard
 - 📷 **Photo Mode** — frozen-time camera suite with LUT filters and a **tiled super-resolution renderer** (2K/4K/8K/16K PNG/JPEG exports + session gallery)
 - 🌃 **Infinite procedural road** — chunk-based streaming highway, technical section, mountain passes, city loop
 - 🏙️ **Night city atmosphere** — emissive storefronts & skyscrapers, neon sign atlas, NFS-style billboards, green-lit gas station
